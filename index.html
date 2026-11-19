@@ -83,6 +83,15 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .sheet .fields{border-top:1px solid var(--line)}
 .sheet .fields div{display:grid;grid-template-columns:84px minmax(0,1fr);gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
 .sheet .fields span{color:var(--muted)}
+.sheet .fields .lx-box{display:flex;flex-direction:column;gap:4px}
+.sheet .fields .lx-row{display:block;color:inherit}
+.sheet .fields .lx-inline{display:flex;flex-wrap:wrap;gap:4px 12px}
+.sheet .fields .lx{display:inline;color:var(--ink);border-radius:6px;padding:1px 4px;margin:0 -4px}
+.sheet .fields .lx.off{color:#b8a99a}
+.sheet .fields .lx.live{background:#fde4e1}
+.lx-tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:11px;font-style:normal;font-weight:700;vertical-align:1px}
+.lx-tag.gray{background:#ece6de;color:#8a7d70}
+.lx-tag.red{background:#d8392f;color:#fff}
 .sheet .nav{height:48px;border:0;border-radius:24px;background:var(--red);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 .zoom{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;overflow:auto}
 .zoom img{max-width:100%;max-height:100%;object-fit:contain}
@@ -344,7 +353,7 @@ function datesOf(range) {
   for (let i = 0; d <= end && i < 120; i++) { out.push(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`); d.setDate(d.getDate() + 1); }
   return out;
 }
-const rangeText = days => !days.length ? '' : days.length === 1 ? days[0] : `${days[0]}－${days[days.length - 1].slice(5)}`;
+const rangeText = days => { if (!days.length) return ''; const a = days[0], b = days[days.length - 1]; return a === b ? a : `${a}－${a.slice(0, 4) === b.slice(0, 4) ? b.slice(5) : b}`; };
 
 /* ---------- 排除離島；元宵期間望安、七美不顯示 ---------- */
 const HIDE_TOWN = ['望安鄉', '七美鄉'];
@@ -357,26 +366,119 @@ let byDay = {};       /* 日期 → 活動廟宇鍵 */
 const tkOf = r => `${clean(r['廟宇名稱'])}@${clean(r.Latitude)},${clean(r.Longitude)}`;
 /* 新增廟宇：用名稱找（同名時取有元宵日期的那間） */
 const extraKey = x => { const hit = Object.values(TEMPLES).filter(t => t.name === x.name); return ((hit.find(t => t.days.length) || hit[0]) || {}).key || ''; };
+/* ---------- 元宵活動內容：細項解析 ----------
+   各項用「、」「|」「│」「｜」隔開；日期、星期列表裡的「、」不算分項（去掉開頭日期、時間後沒有文字的片段併到下一段）。
+   每項開頭可寫日期（單日、期間、民國年、期間＋星期）、時間（HH:MM 或 HH:MM-HH:MM），也可以都不寫。 */
+const LX = (() => {
+  const SEP = '(?:-|－|—|~|～|至|到)';
+  const D = '\\d{4}\\/\\d{1,2}\\/\\d{1,2}';
+  const DATE_TOK = new RegExp(`^(${D})(?:\\s*${SEP}\\s*(${D}|\\d{1,2}\\/\\d{1,2}))?`);
+  const WEEK_TOK = /^(?:週|周|星期|禮拜)([一二三四五六日天])(?:\s*[、,，]\s*(?:週|周|星期|禮拜)?([一二三四五六日天]))*/;
+  const TIME_TOK = new RegExp(`^(\\d{1,2}:\\d{2})(?:\\s*${SEP}\\s*(\\d{1,2}:\\d{2}))?`);
+  const WD = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
+  const norm = v => String(v ?? '').replace(/：/g, ':').replace(/／/g, '/')
+    .replace(/(^|[^\d])(1\d{2})\/(\d{1,2})\/(\d{1,2})/g, (m, p, y, mo, d) => `${p}${Number(y) + 1911}/${mo}/${d}`);
+  const pad = d => { const [y, m, dd] = d.split('/').map(Number); return `${y}/${String(m).padStart(2, '0')}/${String(dd).padStart(2, '0')}`; };
+  const span = (a, b) => { const out = [], d = new Date(a.replace(/\//g, '-') + 'T00:00:00'), e = new Date(b.replace(/\//g, '-') + 'T00:00:00'); for (let i = 0; d <= e && i < 400; i++) { out.push(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`); d.setDate(d.getDate() + 1); } return out; };
+  const wdOf = k => { const [y, m, d] = k.split('/').map(Number); return new Date(y, m - 1, d).getDay(); };
+  /* 讀掉開頭的日期、星期、時間，回傳細項 */
+  function head(text) {
+    let rest = norm(text).trim();
+    const it = { dates: [], ranges: [], weeks: [], start: '', end: '' };
+    for (let guard = 0; guard < 20; guard++) {
+      rest = rest.replace(/^[\s、,，]+/, '');
+      let m;
+      if ((m = rest.match(DATE_TOK))) {
+        const a = pad(m[1]);
+        if (m[2]) { const b = pad(m[2].split('/').length === 2 ? `${a.slice(0, 4)}/${m[2]}` : m[2]); it.ranges.push([a, b]); } else it.dates.push(a);
+        rest = rest.slice(m[0].length); continue;
+      }
+      if ((m = rest.match(WEEK_TOK))) { (m[0].match(/[一二三四五六日天]/g) || []).forEach(c => it.weeks.push(WD[c])); rest = rest.slice(m[0].length); continue; }
+      if ((m = rest.match(TIME_TOK))) { it.start = m[1].padStart(5, '0'); it.end = m[2] ? m[2].padStart(5, '0') : ''; rest = rest.slice(m[0].length); continue; }
+      break;
+    }
+    it.name = rest.trim();
+    return it;
+  }
+  function parse(content) {
+    const parts = String(content || '').split(/[、|│｜]/);
+    const items = []; let buf = '';
+    parts.forEach(p => {
+      const cur = buf ? `${buf}、${p}` : p;
+      if (head(cur).name) { items.push(head(cur)); buf = ''; } else buf = cur;
+    });
+    return items;
+  }
+  /* 細項的日子（null＝沿用整體期間每天） */
+  function ownDays(it) {
+    if (!it.dates.length && !it.ranges.length) return null;
+    const set = new Set(it.dates);
+    it.ranges.forEach(([a, b]) => span(a, b).forEach(d => set.add(d)));
+    return [...set].sort();
+  }
+  function dayLabel(it) {
+    const md = d => d.slice(5);
+    const ds = [...it.dates.map(md), ...it.ranges.map(([a, b]) => `${md(a)}-${md(b)}`)];
+    const W = '日一二三四五六';
+    const ws = [...new Set(it.weeks)].map(w => '週' + W[w]).join('、');
+    return [ds.join('、'), ws].filter(Boolean).join(' ');
+  }
+  const timeLabel = it => it.start ? (it.end ? `${it.start}-${it.end}` : it.start) : '';
+  return { parse, ownDays, dayLabel, timeLabel, span, wdOf, norm, pad };
+})();
+
 function buildTemple(r) {
   const name = clean(r['廟宇名稱']); if (!name) return null;
-  const days = datesOf(r['元宵活動日期範圍(YYYY/MM/DD-YYYY/MM/DD)']);
+  const base = datesOf(LX.norm(r['元宵活動日期範圍(YYYY/MM/DD-YYYY/MM/DD)']));
+  const items = LX.parse(r['元宵活動內容']);
+  /* 整體期間：細項日期超出時，延長到細項的最早／最晚那天 */
+  const own = items.map(LX.ownDays).filter(Boolean).flat();
+  let days = base;
+  if (own.length) {
+    const all = [...base, ...own].sort();
+    days = LX.span(all[0], all[all.length - 1]);
+  }
+  items.forEach(it => {
+    const d = LX.ownDays(it) || days;
+    it.days = it.weeks.length ? d.filter(k => it.weeks.includes(LX.wdOf(k))) : d;
+  });
   return { kind: 'temple', key: tkOf(r), name, town: clean(r['區域(鄉市)']), vil: clean(r['區域(村里)']), deity: clean(r['主祀']), addr: clean(r['地址']), tel: clean(r['電話']),
     lat: num(r.Latitude), lng: num(r.Longitude), pic: driveId(r['圖資來源']), mapUrl: clean(r['完整網址']) || clean(r['短網址']),
-    days, time: clean(r['元宵活動時間']), content: clean(r['元宵活動內容']), gov: clean(r['參加政府單位活動(澎管處、文化局)']) };
+    days, time: clean(r['元宵活動時間']), content: clean(r['元宵活動內容']), items, gov: clean(r['參加政府單位活動(澎管處、文化局)']) };
 }
-function templeFields(t) {
-  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', rangeText(t.days)], ['活動內容', t.content], ['元宵活動時間', t.time], ['配合單位', t.gov], ['地址', t.addr]].filter(x => x[1]);
+/* 現在（台灣時間）是否在細項的時段內 */
+function itemLive(t, it) {
+  const now = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+  if (!it.days.includes(taipeiToday())) return false;
+  const col = (t.time.replace(/：/g, ':').match(/\d{1,2}:\d{2}/g) || []).map(x => x.padStart(5, '0'));
+  let a = '00:00', b = '24:00';
+  if (it.start) { a = it.start; b = it.end || col[1] || '24:00'; }
+  else if (col.length) { a = col[0]; b = col[1] || '24:00'; }
+  return now >= a && now < b;
+}
+/* 活動內容：有日期或時間的一項一行；沒有的排同一行；day＝首頁點的日期 */
+function itemsHtml(t, day) {
+  const one = it => {
+    const label = [LX.dayLabel(it), LX.timeLabel(it), it.name].filter(Boolean).join(' ');
+    const off = day && !it.days.includes(day), live = itemLive(t, it);
+    return `<span class="lx${off ? ' off' : ''}${live ? ' live' : ''}">${esc(label)}${off ? '<i class="lx-tag gray">非本日</i>' : ''}${live ? '<i class="lx-tag red">進行中</i>' : ''}</span>`;
+  };
+  const timed = t.items.filter(it => LX.dayLabel(it) || LX.timeLabel(it)), plain = t.items.filter(it => !(LX.dayLabel(it) || LX.timeLabel(it)));
+  return `<span class="lx-box">${timed.map(it => `<span class="lx-row">${one(it)}</span>`).join('')}${plain.length ? `<span class="lx-row lx-inline">${plain.map(one).join('')}</span>` : ''}</span>`;
+}
+function templeFields(t, day) {
+  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', rangeText(t.days)], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov], ['地址', t.addr]].filter(x => x[1]);
 }
 
 /* ---------- 詳細資訊 ---------- */
-function openSheet(o) {
-  const fields = o.kind === 'temple' ? templeFields(o) : (o.fields || []);
+function openSheet(o, day) {
+  const fields = o.kind === 'temple' ? templeFields(o, day) : (o.fields || []);
   const tag = o.kind === 'temple' ? o.gov : (o.tag || '');
   const url = navUrl(o);
   $('sheet').innerHTML = `<div class="box" role="dialog" aria-label="詳細資訊">
     <div class="hd"><b>${esc(o.name)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ''}<button type="button" class="x" aria-label="關閉">${svg('close', 20)}</button></div>
     ${o.pic ? `<img class="pic" src="${esc(picUrl(o.pic, 1000))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
-    <div class="fields">${fields.map(([k, v]) => `<div><span>${esc(k)}</span><b style="font-weight:500">${esc(v)}</b></div>`).join('')}</div>
+    <div class="fields">${fields.map(([k, v]) => `<div><span>${esc(k)}</span><b style="font-weight:500">${v && v.html ? v.html : esc(v)}</b></div>`).join('')}</div>
     ${url ? `<a class="nav" href="${esc(url)}" target="_blank" rel="noopener">${svg('nav', 18)}導航</a>` : ''}
   </div>`;
   $('sheet').hidden = false;
@@ -418,7 +520,8 @@ const Home = (() => {
     let html = WEEK.map(w => `<div class="wk">${w}</div>`).join('');
     for (let i = 0; i < first; i++) html += '<div class="d"></div>';
     for (let d = 1; d <= dim; d++) {
-      const k = `${month}/${String(d).padStart(2, '0')}`, n = (byDay[k] || []).length;
+      /* 過期的日期不標示 */
+      const k = `${month}/${String(d).padStart(2, '0')}`, n = k < taipeiToday() ? 0 : (byDay[k] || []).length;
       html += n ? `<button type="button" class="d${k === day ? ' on' : ''}" data-day="${k}">${d}<small>${n} 間</small></button>` : `<div class="d">${d}</div>`;
     }
     $('cal').innerHTML = html;
@@ -449,7 +552,7 @@ const Home = (() => {
       const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
       const pic = t ? t.pic : s.pic;
-      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && t.content ? `<em>${esc(t.content)}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
+      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && t.items.some(it => it.days.includes(day)) ? `<em>${esc(t.items.filter(it => it.days.includes(day)).map(it => it.name).join('、'))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
     }).join('')}</div>`).join('');
     box.style.setProperty('--rc', r.color);
     box.innerHTML = `<div class="rsel-row"><label for="rsel">元宵路線</label><select id="rsel">${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
@@ -470,7 +573,7 @@ const Home = (() => {
     const st = e.target.closest('.stop');
     if (st) {
       const t = st.dataset.t && TEMPLES[st.dataset.t];
-      if (t) return openSheet(Object.assign({}, t, { name: st.dataset.stop }));
+      if (t) return openSheet(Object.assign({}, t, { name: st.dataset.stop }), day);
       const r = ROUTES.find(x => x.key === route), s = r.secs.flatMap(x => x.stops).find(x => x.name === st.dataset.stop);
       if (s) openSheet(spotObj(s));
       return;
@@ -499,7 +602,7 @@ const Home = (() => {
       const hot = !!(t && today.includes(s.tk)), no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       L.marker([lat, lng], { icon: L.divIcon({ className: '', html: `<div class="pin${hot ? ' hot' : ''}">${no}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
         .bindTooltip(s.name, { permanent: true, direction: 'right', offset: [14, 0], className: 'pin-name' })
-        .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name })) : openSheet(spotObj(s))).addTo(rlayer);
+        .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name }), day) : openSheet(spotObj(s))).addTo(rlayer);
     }));
     if (pts.length > 1) L.polyline(pts, { color: r.color, weight: 3, opacity: .7 }).addTo(rlayer);
     setTimeout(() => { rmap.invalidateSize(); if (pts.length) rmap.fitBounds(pts, { padding: [30, 30] }); }, 60);
