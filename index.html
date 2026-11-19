@@ -93,6 +93,9 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .rmap .bar button{margin-left:auto;width:40px;height:40px;border:0;border-radius:20px;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center}
 .rmap #rmapBox{flex:1}
 .pin{width:26px;height:26px;border-radius:13px;background:#fff;border:2px solid var(--line);color:var(--muted);font:700 11px/22px var(--font);text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.leaflet-tooltip.pin-name{padding:1px 6px;border-radius:6px;font:700 12px/1.4 var(--font);color:var(--ink);background:rgba(255,255,255,.92);border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.leaflet-tooltip.pin-name::before{display:none}
+#mapBox.names-off .leaflet-tooltip.pin-name{display:none}
 .pin.hot{background:var(--gold);border-color:var(--red);color:var(--goldink)}
 /* 地圖 */
 .mq{-webkit-appearance:none;appearance:none;flex:none;height:50px;padding:0 16px;border:1px solid #cfe4ea;border-radius:14px;background:#fff;font-size:16px;color:var(--ink);width:100%}
@@ -232,7 +235,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
         <div class="map-side">
           <label for="mq" hidden>搜尋</label>
           <input id="mq" class="mq" type="search" placeholder="搜尋名稱、分類、村里或地址" autocomplete="off">
-          <div class="mr"><label for="mr">區域（鄉市）</label><select id="mr"><option value="">全部區域</option><option>馬公市</option><option>湖西鄉</option><option>白沙鄉</option><option>西嶼鄉</option><option>望安鄉</option><option>七美鄉</option></select></div>
+          <div class="mr"><label for="mr">區域（鄉市）</label><select id="mr"><option value="">全部區域</option><option>馬公市</option><option>湖西鄉</option><option>白沙鄉</option><option>西嶼鄉</option></select></div>
           <div class="cats" id="cats"></div>
           <div id="mapEmpty" class="empty" hidden>這個區域目前沒有符合的資料</div>
           <div class="cards" id="cards"></div>
@@ -252,7 +255,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
       <div id="fcPane" hidden>
         <div class="tide-toolbar">
           <label for="forecastRegion">預報區域：</label>
-          <select id="forecastRegion"><option value="馬公">馬公</option><option value="湖西">湖西</option><option value="白沙" selected>白沙</option><option value="西嶼">西嶼</option><option value="望安">望安</option><option value="七美">七美</option></select>
+          <select id="forecastRegion"><option value="馬公">馬公</option><option value="湖西">湖西</option><option value="白沙" selected>白沙</option><option value="西嶼">西嶼</option></select>
           <span id="forecastLoading" style="display:none;color:#075985;font-weight:bold;margin-left:10px;">數據載入中...</span>
         </div>
         <div class="forecast-list" id="forecastList"></div>
@@ -342,6 +345,11 @@ function datesOf(range) {
   return out;
 }
 const rangeText = days => !days.length ? '' : days.length === 1 ? days[0] : `${days[0]}－${days[days.length - 1].slice(5)}`;
+
+/* ---------- 排除離島；元宵期間望安、七美不顯示 ---------- */
+const HIDE_TOWN = ['望安鄉', '七美鄉'];
+const ISLAND = /吉貝|鳥嶼|員貝|目斗|姑婆|澎澎灘|大倉|桶盤|虎井/;
+const keepPlace = o => !!o && !HIDE_TOWN.includes(o.town) && !ISLAND.test([o.vil, o.name, o.addr].join(' '));
 
 /* ---------- 廟宇資料 ---------- */
 const TEMPLES = {};   /* 廟宇鍵（名稱＠座標）→ 資料；同名廟宇用座標區分 */
@@ -490,6 +498,7 @@ const Home = (() => {
       pts.push([lat, lng]);
       const hot = !!(t && today.includes(s.tk)), no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       L.marker([lat, lng], { icon: L.divIcon({ className: '', html: `<div class="pin${hot ? ' hot' : ''}">${no}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+        .bindTooltip(s.name, { permanent: true, direction: 'right', offset: [14, 0], className: 'pin-name' })
         .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name })) : openSheet(spotObj(s))).addTo(rlayer);
     }));
     if (pts.length > 1) L.polyline(pts, { color: r.color, weight: 3, opacity: .7 }).addTo(rlayer);
@@ -502,7 +511,7 @@ const Home = (() => {
 async function loadTemples() {
   try {
     const rows = await loadRows('temple');
-    const list = rows.map(buildTemple).filter(Boolean);
+    const list = rows.map(buildTemple).filter(keepPlace);
     const map = {}; byDay = {};
     list.forEach(t => { if (!map[t.key]) map[t.key] = t; });
     Object.assign(TEMPLES, map);
@@ -535,7 +544,7 @@ const MapView = (() => {
     return { kind: 'food', name, town, vil: '', addr, lat: num(r.Latitude), lng: num(r.Longitude), pic: driveId(r['圖資來源']), mapUrl: clean(r['完整網址']) || clean(r['短網址']), tag: '美食',
       meta: [c1, c2, svc].filter(Boolean).join('・'), rec, hrs, tel, fields: [['代表餐食', svc], ['推薦', rec], ['電話', tel], ['營業時間', hrs], ['地址', addr]].filter(x => x[1]) };
   }
-  function setData(k, list) { data[k] = list.map(r => build(k, r)).filter(Boolean); if (currentView === 'map') render(); }
+  function setData(k, list) { data[k] = list.map(r => build(k, r)).filter(keepPlace); if (currentView === 'map') render(); }
   async function load() {
     if (loaded) return; loaded = true;
     await Promise.all(['food', 'spot'].map(async k => { try { setData(k, await loadRows(k)); } catch (e) {} }));
@@ -575,6 +584,9 @@ const MapView = (() => {
     if (!map) {
       map = L.map('mapBox', { preferCanvas: true, minZoom: 9, maxZoom: 20 }).setView([23.49, 119.555], 10);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
+      /* 圖釘名稱：放大到 13 級以上才顯示，整個澎湖時名稱會疊在一起 */
+      const nameByZoom = () => $('mapBox').classList.toggle('names-off', map.getZoom() < 13);
+      map.on('zoomend', nameByZoom); map.whenReady(nameByZoom);
     }
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
@@ -582,7 +594,7 @@ const MapView = (() => {
     items.forEach(o => {
       if (o.lat == null || o.lng == null) return;
       pts.push([o.lat, o.lng]);
-      L.circleMarker([o.lat, o.lng], { radius: 7, color: '#fff', weight: 2, fillColor: catOf(o).fg, fillOpacity: .95 }).bindTooltip(o.name).on('click', () => openSheet(o)).addTo(layer);
+      L.circleMarker([o.lat, o.lng], { radius: 7, color: '#fff', weight: 2, fillColor: catOf(o).fg, fillOpacity: .95 }).bindTooltip(o.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pin-name' }).on('click', () => openSheet(o)).addTo(layer);
     });
     setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [24, 24], maxZoom: 15 }); }, 60);
   }
@@ -812,9 +824,7 @@ const Wx = (() => {
     '馬公市': { lat: 23.5667, lng: 119.5833, sea: [23.55, 119.54] },
     '湖西鄉': { lat: 23.5833, lng: 119.6600, sea: [23.60, 119.72] },
     '白沙鄉': { lat: 23.6660, lng: 119.5860, sea: [23.72, 119.60] },
-    '西嶼鄉': { lat: 23.6020, lng: 119.5078, sea: [23.60, 119.45] },
-    '望安鄉': { lat: 23.3697, lng: 119.5039, sea: [23.37, 119.46] },
-    '七美鄉': { lat: 23.2017, lng: 119.4290, sea: [23.20, 119.39] }
+    '西嶼鄉': { lat: 23.6020, lng: 119.5078, sea: [23.60, 119.45] }
   };
   let area = AREAS[lsGet('lf.wxArea')] ? lsGet('lf.wxArea') : '馬公市';
   const FC = a => `https://api.open-meteo.com/v1/forecast?latitude=${a.lat}&longitude=${a.lng}&timezone=Asia%2FTaipei&wind_speed_unit=ms&forecast_days=7`
