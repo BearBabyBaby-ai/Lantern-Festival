@@ -303,14 +303,15 @@ function checkWindow() {
 }
 
 /* ---------- 分頁 ---------- */
-const TABS = [['home', '首頁'], ['map', '地圖'], ['stamp', '集章'], ['tide', '潮汐']];
+/* 集章只在手機端；電腦端沒有集章 */
+const TABS = [['home', '首頁'], ['map', '地圖'], ...(IS_PC ? [] : [['stamp', '集章']]), ['tide', '潮汐']];
 let currentView = 'home';
 const navHtml = () => TABS.map(([k, n]) => `<button type="button" data-v="${k}">${svg(k === 'stamp' ? 'stamp' : k, 22)}<span>${n}</span></button>`).join('');
 $('topNav').innerHTML = navHtml(); $('bNav').innerHTML = navHtml();
 function showView(v, push = true) {
   if (!TABS.some(t => t[0] === v)) v = 'home';
   currentView = v;
-  TABS.forEach(([k]) => { $('v-' + k).hidden = k !== v; });
+  ['home', 'map', 'stamp', 'tide'].forEach(k => { $('v-' + k).hidden = k !== v; });
   document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   $('main').scrollTop = 0;
   if (push) history.pushState({ v }, '');
