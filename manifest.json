@@ -1,0 +1,18 @@
+{
+  "name": "澎湖慶元宵‧乞龜祈福來",
+  "short_name": "澎湖元宵",
+  "description": "2027 澎湖元宵：五大路線、活動廟宇、地圖、元宵集章卡、潮汐分海",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "zh-Hant-TW",
+  "theme_color": "#a8231b",
+  "background_color": "#fff7ec",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

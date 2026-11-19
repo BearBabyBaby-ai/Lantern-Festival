@@ -1,0 +1,13 @@
+{
+  "appId": "io.github.bearbabybaby_ai.lantern",
+  "appName": "澎湖元宵",
+  "webDir": "www",
+  "server": {
+    "url": "https://bearbabybaby-ai.github.io/Lantern-Festival/",
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "adjustMarginsForEdgeToEdge": "disable"
+  }
+}

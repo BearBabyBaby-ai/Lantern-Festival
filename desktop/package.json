@@ -1,0 +1,33 @@
+{
+  "name": "lantern-desktop",
+  "productName": "澎湖元宵",
+  "version": "1.0.0",
+  "description": "澎湖慶元宵‧乞龜祈福來",
+  "main": "main.js",
+  "author": "BearBabyBaby-ai",
+  "private": true,
+  "scripts": {
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "38.8.6",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "io.github.bearbabybaby_ai.lantern",
+    "productName": "澎湖元宵",
+    "artifactName": "lantern-setup.${ext}",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "icon.png", "package.json"],
+    "win": { "icon": "icon.png", "target": ["nsis"] },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "澎湖元宵",
+      "language": "1028"
+    }
+  }
+}
