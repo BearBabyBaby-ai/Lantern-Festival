@@ -1,4 +1,4 @@
-/* 五大路線（站序與路線DM相同；feat＝精選景點站號；walk＝步行段） */
+/* 五大路線（站序與路線DM相同；feat＝精選景點站號；walk＝步行段；url＝發布用地圖連結（景點資料沒有時才填）） */
 const ROUTES = [
  {
   "key": "north",
@@ -12,7 +12,8 @@ const ROUTES = [
     "stops": [
      {
       "n": 1,
-      "name": "全家便利商店 澎湖尚洪店"
+      "name": "全家便利商店 澎湖尚洪店",
+      "url": "https://maps.google.com/?q=23.5692939,119.5987243"
      },
      {
       "n": 2,
@@ -229,7 +230,8 @@ const ROUTES = [
      {
       "n": 27,
       "name": "外垵小希臘",
-      "pic": "1MjsRhbwYcR8jL2OpL3m5v_OrYsaWXiEI"
+      "pic": "1MjsRhbwYcR8jL2OpL3m5v_OrYsaWXiEI",
+      "url": "https://maps.google.com/?q=23.5639893,119.4774794"
      },
      {
       "n": 28,
@@ -270,7 +272,8 @@ const ROUTES = [
      {
       "n": 32,
       "name": "池東大果葉玄武岩",
-      "pic": "11qwDxXofrwUpLi1uk77T47yhGIoWTOCv"
+      "pic": "11qwDxXofrwUpLi1uk77T47yhGIoWTOCv",
+      "url": "https://maps.app.goo.gl/rcuNd72xWZE28sZH7"
      },
      {
       "n": 33,
@@ -292,7 +295,8 @@ const ROUTES = [
      },
      {
       "n": 35,
-      "name": "漁翁島遊客中心"
+      "name": "漁翁島遊客中心",
+      "url": "https://maps.google.com/?q=23.6393871,119.5407852"
      },
      {
       "n": 36,
@@ -468,7 +472,8 @@ const ROUTES = [
      },
      {
       "n": 12,
-      "name": "龍門閉鎖陣地"
+      "name": "龍門閉鎖陣地",
+      "url": "https://maps.app.goo.gl/mARV9HwPdAdrNX1t7"
      },
      {
       "n": 13,
@@ -487,7 +492,8 @@ const ROUTES = [
      },
      {
       "n": 15,
-      "name": "果葉觀日樓"
+      "name": "果葉觀日樓",
+      "url": "https://maps.app.goo.gl/QoZcdSLrywSad7iT6"
      },
      {
       "n": 16,
@@ -622,7 +628,8 @@ const ROUTES = [
      },
      {
       "n": 31,
-      "name": "全家便利商店 澎湖尚洪店"
+      "name": "全家便利商店 澎湖尚洪店",
+      "url": "https://maps.google.com/?q=23.5692939,119.5987243"
      }
     ]
    }
@@ -864,7 +871,8 @@ const ROUTES = [
      },
      {
       "n": 3,
-      "name": "施公祠"
+      "name": "施公祠",
+      "url": "https://maps.app.goo.gl/eBMhfbx5UdQ64bud6"
      },
      {
       "n": 4,
