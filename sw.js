@@ -1,4 +1,4 @@
-const VERSION = 'lantern-2027-v24';
+const VERSION = 'lantern-2027-v25';
 const SHELL_CACHE = `lantern-shell-${VERSION}`;
 const DATA_CACHE = 'lantern-sheet-data';
 const LIB_CACHE = 'lantern-libs';
