@@ -511,10 +511,9 @@ function buildTemple(r) {
 }
 /* 路線列表的活動：每一項各自標日期（同詳細資訊），依日期排序；配合單位（例：文化局-2027超級龜龜）照它的日子標 */
 const mdText = days => dayText(days).replace(/\d{4}\//g, '');
-/* 活動進行中：以首頁月曆選的日期查詢；選的是今天時再看現在時間是否在時段內 */
+/* 活動進行中：查詢日（首頁月曆點的日期；預設就是今天）有這項就標，手點日期或實際日期同一個意思 */
 function liveOn(t, it, day) {
-  if (!day) day = typeof Home !== 'undefined' && Home.day ? Home.day() : '';   /* 從地圖點開時，用首頁月曆選的日期 */
-  if (!day || day === taipeiToday()) return itemLive(t, it);
+  if (!day) day = typeof Home !== 'undefined' && Home.day ? Home.day() : taipeiToday();
   return it.days.includes(day);
 }
 function routeActs(t, day) {
