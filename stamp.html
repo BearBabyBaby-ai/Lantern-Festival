@@ -687,7 +687,7 @@ function lxText(o){
       b.setAttribute("aria-selected", k===st.cat ? "true" : "false");
       b.querySelector("small").textContent = k==="book" ? Object.keys(st.done).length + "/" + total() : doneIn(k) + "/" + countable(k);
     });
-    $(".prog").textContent = "集章 " + Object.keys(st.done).length + " / " + total();
+    $(".prog").textContent = "集章 " + Object.keys(PLACES).reduce((n,k)=>n+doneIn(k),0) + " / " + total();
     renderSubSel();
     if(isBook){ stopMore(); $(".cards").innerHTML = bookHTML(); }
     else renderCards();
