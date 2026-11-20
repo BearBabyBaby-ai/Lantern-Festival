@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <meta charset="UTF-8">
-<script>/*記住目前所在系統*/try{var s=location.pathname.split("/")[1];if(s)localStorage.setItem("bb-last-system",s)}catch(e){}</script>
+<script>/*記住目前所在系統*/try{var s=location.pathname.split("/")[1];if(s)sessionStorage.setItem("bb-last-system",s);localStorage.removeItem("bb-last-system")}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>元宵集章卡</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
