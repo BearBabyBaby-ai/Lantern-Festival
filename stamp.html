@@ -286,6 +286,8 @@ function lxText(o){
       const town = o["區域(鄉市)"], vil = o["區域(村里)"], god = o["主祀"], ad = o["地址"], tel = o["電話"];
       // 排除離島；元宵期間望安、七美不顯示
       if(/望安鄉|七美鄉/.test(town) || /吉貝|鳥嶼|員貝|目斗|姑婆|澎澎灘|大倉|桶盤|虎井/.test([vil, name, ad].join(" "))) return null;
+      // 只列有元宵活動的廟宇（有元宵日期）
+      if(!lxText(o).range) return null;
       return { name, key:ad||town+vil, sub: god ? "主祀 "+god : "", tag:god,
         meta: keep([town&&"📍"+town, vil, god&&"🙏"+god, ad&&"🏠"+ad]),
         info: keep([["廟宇名稱", name], ["主祀", god], ["元宵日期", lxText(o).range], ["元宵活動", lxText(o).acts], ["配合單位", lxText(o).gov], ["電話", tel], ["地址", ad]].filter(x => x[1])),
