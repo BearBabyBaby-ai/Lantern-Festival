@@ -105,6 +105,11 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .leaflet-tooltip.pin-name{padding:1px 6px;border-radius:6px;font:700 12px/1.4 var(--font);color:var(--ink);background:rgba(255,255,255,.92);border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .leaflet-tooltip.pin-name::before{display:none}
 .leaflet-tooltip.pin-name.hide{visibility:hidden}
+.pin-icon{border:none;background:none}
+.pin-icon .pin-dot{position:absolute;inset:0;display:grid;place-items:center;color:white;background:var(--pin);border:2px solid white;border-radius:50%;font-size:10px;font-weight:850;line-height:1;box-shadow:0 1px 5px #173a3b60}
+.pin-icon.route-pin .pin-dot{--pin:#0b3954;font-size:11px}
+.route-arrow{background:none;border:none;pointer-events:none}
+.route-arrow svg{width:18px;height:18px;fill:#fff;stroke:#0b3954;stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
 .pin.hot{background:var(--gold);border-color:var(--red);color:var(--goldink)}
 /* 地圖 */
 .mq{-webkit-appearance:none;appearance:none;flex:none;height:50px;padding:0 16px;border:1px solid #cfe4ea;border-radius:14px;background:#fff;font-size:16px;color:var(--ink);width:100%}
@@ -545,21 +550,229 @@ function spotObj(s) {
   const fields = [['鄉市／村里', s.place], ['地址', s.addr], ['簡易說明', (live && live.desc) || s.desc]].filter(x => x[1]);
   return { kind: 'spot', name: s.name, pic: s.pic, fields, lat: s.lat ?? null, lng: s.lng ?? null, addr: s.addr };
 }
-function routePins(layer, r, day, numbered) {
-  const today = byDay[day] || [], pts = [];
+/* 路線道路繪製：與澎湖美食推薦相同（沿道路、方向箭頭、編號圖釘） */
+const ROUTE_LINE = { city: '#2252a3', suburb: '#6b4394', north: '#855905', south: '#aa3e23', east: '#08725f' };
+const roadCache = new Map(), roadTries = new Map();
+let nextRoadRequest = Promise.resolve();
+const aimenParkingApproach = [23.55632, 119.63788];
+const aimenWestRoad = [23.55872, 119.63674];
+const aimenCounty204 = [23.56280, 119.64039];
+const qianhaiCrabPoint = [23.5893395, 119.6635348];
+const qianhaiCoastRoad = [[23.5907044, 119.6687208], [23.5908213, 119.6686186], [23.5909148, 119.6683733], [23.5909148, 119.6681945], [23.5908213, 119.6677602], [23.5907044, 119.6672237], [23.5905875, 119.6666617], [23.5904940, 119.6657420], [23.5904238, 119.6652566], [23.5903303, 119.6650777], [23.5901666, 119.6649244], [23.5898860, 119.6646434], [23.5896055, 119.6645157], [23.5892781, 119.6644135], [23.5891145, 119.6641836], [23.5890911, 119.6638515], [23.5891846, 119.6634427], [23.5893015, 119.6631361], [23.5892314, 119.6629317], [23.5893015, 119.6623697], [23.5894184, 119.6619354], [23.5896288, 119.6615522], [23.5892197, 119.6611434], [23.5888339, 119.6613223], [23.5882493, 119.6616033], [23.5877817, 119.6616161], [23.5875128, 119.6613414], [23.5872498, 119.6612201], [23.5870218, 119.6609454], [23.5868757, 119.6605942], [23.5869517, 119.6602429], [23.5867062, 119.6600193], [23.5864139, 119.6597958], [23.5859813, 119.6595595]];
+const qianhaiEastJunction = qianhaiCoastRoad[0];
+const qianhaiWestJunction = qianhaiCoastRoad.at(-1);
+const routeRoadConstraints = new Map([
+  [aimenParkingApproach, { radius: 20, bearing: '' }],
+  [aimenWestRoad, { radius: 20, bearing: '' }],
+  [aimenCounty204, { radius: 20, bearing: '90,40' }],
+  [qianhaiEastJunction, { radius: 20, bearing: '' }],
+  [qianhaiWestJunction, { radius: 20, bearing: '' }],
+]);
+async function fetchRoad(points, walking, mainland) {
+  const coords = points.map(([lat, lng]) => lng.toFixed(7) + ',' + lat.toFixed(7)).join(';');
+  const base = walking ? 'https://routing.openstreetmap.de/routed-foot/' : 'https://routing.openstreetmap.de/routed-car/';
+  const mainlandOptions = mainland ? '&steps=true&generate_hints=false&radiuses=' +
+    points.map(point => routeRoadConstraints.get(point)?.radius ?? 500).join(';') : '';
+  const bearings = points.includes(aimenCounty204) ? '&bearings=' +
+    points.map(point => routeRoadConstraints.get(point)?.bearing ?? '').join(';') : '';
+  const requestTurn = nextRoadRequest;
+  nextRoadRequest = requestTurn.then(() => new Promise(resolve => setTimeout(resolve, 1050)));
+  await requestTurn;
+  const response = await fetch(base + 'route/v1/driving/' + coords + '?overview=full&geometries=geojson&continue_straight=false' +
+    mainlandOptions + bearings, { signal: AbortSignal.timeout(20000) });
+  if (!response.ok) {
+    const error = new Error('Road service unavailable');
+    error.retry = response.status === 429 || response.status >= 500;
+    throw error;
+  }
+  const data = await response.json();
+  const route = data?.routes?.[0];
+  const line = route?.geometry?.coordinates;
+  if (!(line?.length >= 2) || !line.every(p => p.length >= 2 && p.slice(0, 2).every(Number.isFinite)) ||
+      route.legs?.length !== points.length - 1 || !route.legs.every(leg => Number.isFinite(leg.distance)) ||
+      (mainland && route.legs.some(leg => !Array.isArray(leg.steps) || leg.steps.some(step => step.mode === 'ferry')))) {
+    throw new Error('Incomplete road route');
+  }
+  return { line: line.map(([lng, lat]) => [lat, lng]) };
+}
+async function roadSections(points, walking) {
+  try {
+    return { sections: [await fetchRoad(points, walking, true)], incomplete: false };
+  } catch (error) {
+    if (error.retry !== false && error.message !== 'Incomplete road route') throw error;
+    if (points.length === 2) return { sections: [], incomplete: true };
+    const middle = Math.floor(points.length / 2);
+    const first = await roadSections(points.slice(0, middle + 1), walking);
+    const second = await roadSections(points.slice(middle), walking);
+    return { sections: [...first.sections, ...second.sections], incomplete: first.incomplete || second.incomplete };
+  }
+}
+const northVias = [
+  { from: '哈密瓜車站', to: '通樑古榕', via: [[23.661623, 119.566063], [23.660203, 119.565001], [23.658924, 119.562181], [23.658246, 119.559069], [23.657287, 119.557682]] },
+  { from: '漁翁島遊客中心', to: '嗨鼠造景', via: [[23.657361, 119.555226], [23.656507, 119.556469], [23.657287, 119.557682], [23.658246, 119.559069], [23.658677, 119.561598], [23.659839, 119.564239], [23.660749, 119.566004], [23.661822, 119.568132], [23.66245, 119.57019]] },
+  { from: '夢幻沙灘', to: '小池角雙曲橋', via: [[23.613048, 119.509933], [23.614177, 119.51171], [23.613411, 119.513215], [23.611151, 119.514844], [23.609267, 119.514527], [23.607777, 119.514173]] },
+];
+for (const { via } of northVias) for (const point of via) routeRoadConstraints.set(point, { radius: 25, bearing: '' });
+const northHarborRoad = [[23.656524, 119.557127], [23.656524, 119.556479], [23.657308, 119.55583], [23.657332, 119.555182]];
+const northCoastRoad = [[23.6739233, 119.577328], [23.6740635, 119.5775066], [23.6742038, 119.5776853], [23.6743441, 119.5778256], [23.6744843, 119.5779405], [23.6746246, 119.5780681], [23.6747648, 119.5781701], [23.6749051, 119.578285], [23.6750453, 119.5784126], [23.6751856, 119.5785274], [23.6753258, 119.5786167], [23.6754661, 119.5786805], [23.6756064, 119.5787316], [23.6757466, 119.5787316], [23.6758869, 119.5787443]];
+function northRoadParts(list, points) {
+  const pts = [], at = [];
+  list.forEach((item, i) => {
+    at.push(pts.length);
+    pts.push(points[i]);
+    const via = northVias.find(v => v.from === item.name && v.to === list[i + 1]?.name)?.via;
+    if (via) pts.push(...via);
+  });
+  const cuts = [];
+  const k = list.findIndex(item => item.returnVia);
+  const back = list[k]?.returnVia?.[0];
+  if (k >= 1 && list[k - 1] === back && list[k + 1] === back) {
+    cuts.push({ i: k - 1, line: [points[k - 1], ...northCoastRoad] });
+    cuts.push({ i: k, line: [...[...northCoastRoad].reverse(), points[k + 1]] });
+  }
+  const h = list.findIndex((item, i) => item.name === '通樑古榕' && list[i + 1]?.name === '澎湖跨海大橋');
+  if (h >= 0) cuts.push({ i: h, line: [points[h], ...northHarborRoad, points[h + 1]] });
+  const parts = [];
+  let start = 0;
+  for (const cut of cuts.sort((x, y) => x.i - y.i)) {
+    if (at[cut.i] + 1 - at[start] >= 2) parts.push({ walking: false, points: pts.slice(at[start], at[cut.i] + 1) });
+    parts.push({ line: cut.line });
+    start = cut.i + 1;
+  }
+  if (pts.length - at[start] >= 2) parts.push({ walking: false, points: pts.slice(at[start]) });
+  return parts;
+}
+function huxiRoadParts(list, points) {
+  const beach = list.findIndex(item => item.name === '隘門沙灘');
+  const park = beach + 1;
+  const lintoBeach = beach + 3;
+  const hasAimenSection = beach > 0 && list[park]?.name === '林投公園' &&
+    list[beach + 2]?.name === '雲朵盪鞦韆' && list[lintoBeach]?.name === '林投沙灘';
+  const parts = hasAimenSection ? [
+    { walking: false, points: [...points.slice(0, beach), aimenWestRoad, aimenParkingApproach] },
+    { walking: false, points: [aimenParkingApproach, aimenWestRoad, aimenCounty204, points[park]] },
+    { walking: true, points: points.slice(park, lintoBeach + 1) },
+  ] : [];
+  const start = hasAimenSection ? lintoBeach : 0;
+  const crab = list.findIndex(item => item.name === '南寮-前海橋螃蟹');
+  if (crab > start && crab < points.length - 1 &&
+      Math.hypot(points[crab][0] - qianhaiCrabPoint[0], points[crab][1] - qianhaiCrabPoint[1]) < 0.0001) {
+    parts.push(
+      { walking: false, points: [...points.slice(start, crab), qianhaiEastJunction] },
+      { line: qianhaiCoastRoad },
+      { walking: false, points: [qianhaiWestJunction, ...points.slice(crab + 1)] },
+    );
+  } else {
+    if (!hasAimenSection) return null;
+    if (start < points.length - 1) parts.push({ walking: false, points: points.slice(start) });
+  }
+  return parts;
+}
+function roadStoreKey(cacheKey) {
+  let hash = 0;
+  for (let i = 0; i < cacheKey.length; i++) hash = (hash * 31 + cacheKey.charCodeAt(i)) | 0;
+  return 'lanternRoad1:' + hash + ':' + cacheKey.length;
+}
+function loadStoredRoad(cacheKey) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(roadStoreKey(cacheKey)) || 'null');
+    return saved && saved.k === cacheKey ? saved.d : null;
+  } catch { return null; }
+}
+function saveStoredRoad(cacheKey, road) {
+  if (!road || road.incomplete || !road.sections?.length) return;
+  try { localStorage.setItem(roadStoreKey(cacheKey), JSON.stringify({ k: cacheKey, d: road })); } catch { }
+}
+const roadViews = new Set();
+function redrawRoads() { roadViews.forEach(v => v.draw()); }
+function cachedRoad(cacheKey, request) {
+  if (!roadCache.has(cacheKey)) {
+    const stored = loadStoredRoad(cacheKey);
+    if (stored) { roadCache.set(cacheKey, stored); return stored; }
+    roadCache.set(cacheKey, null);
+    request()
+      .then(road => { roadTries.delete(cacheKey); roadCache.set(cacheKey, road); saveStoredRoad(cacheKey, road); redrawRoads(); })
+      .catch(() => {
+        roadTries.set(cacheKey, (roadTries.get(cacheKey) || 0) + 1);
+        if (roadTries.get(cacheKey) < 4) setTimeout(() => { roadCache.delete(cacheKey); redrawRoads(); }, 2500);
+        else { roadCache.set(cacheKey, false); redrawRoads(); }
+      });
+  }
+  return roadCache.get(cacheKey);
+}
+function roadFor(r, list) {
+  const waypoints = list.map(item => item.point);
+  const parts = r.key === 'east' ? huxiRoadParts(list, waypoints) : r.key === 'north' ? northRoadParts(list, waypoints) : null;
+  if (parts) {
+    const got = parts.map(part => part.line ? { sections: [{ line: part.line }] } :
+      cachedRoad(JSON.stringify([part.walking, true, part.points]), () => roadSections(part.points, part.walking)));
+    return { sections: got.flatMap(part => part?.sections ?? []) };
+  }
+  const walking = r.key === 'city';
+  return cachedRoad(JSON.stringify([walking, true, waypoints]), () => roadSections(waypoints, walking));
+}
+/* 站點清單（含北環島 後寮天堂路 原路折返） */
+function routeStops(r) {
+  const out = [];
   stopsOf(r).forEach(sec => sec.stops.forEach(s => {
     const t = s.tk ? TEMPLES[s.tk] : null, lat = t ? t.lat : s.lat, lng = t ? t.lng : s.lng;
+    if (s.extra && !t) return;
     if (lat == null || lng == null) return;
-    pts.push([lat, lng]);
-    const hot = !!(t && today.includes(s.tk)), no = s.extra ? '廟' : String(s.n).padStart(2, '0');
-    L.marker([lat, lng], { icon: L.divIcon({ className: '', html: `<div class="pin${hot ? ' hot' : ''}">${no}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
-      .bindTooltip(s.name, { permanent: true, direction: 'right', offset: [14, 0], className: 'pin-name' })
-      .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name }), day) : openSheet(spotObj(s))).addTo(layer);
+    out.push({ s, t, name: s.name, point: [lat, lng] });
   }));
-  if (pts.length > 1) L.polyline(pts, { color: r.color, weight: 3, opacity: .7 }).addTo(layer);
+  if (r.key === 'north') {
+    const i = out.findIndex(x => x.name === '後寮天堂路');
+    const p7 = out[i - 1], p6 = out[i - 2];
+    if (i >= 2 && p7.name === '後寮-天使之翼造景' && p6.name === '哈密瓜車站') out[i].returnVia = [p7, p6];
+  }
+  return out;
+}
+function RoadView(map) {
+  let r = null, layer = null;
+  const view = {
+    draw() {
+      if (!r || !layer) return;
+      layer.clearLayers();
+      const list = routeStops(r).flatMap(item => [item, ...(item.returnVia || [])]);
+      if (list.length < 2) return;
+      const road = roadFor(r, list);
+      if (!road) return;
+      const color = ROUTE_LINE[r.key] || r.color, zoom = map.getZoom();
+      for (const { line } of road.sections) {
+        L.polyline(line, { color, weight: 5, opacity: .9, interactive: false }).addTo(layer);
+        let sinceArrow = 90;
+        for (let k = 0; k < line.length - 1; k++) {
+          const pa = map.project(line[k], zoom), pb = map.project(line[k + 1], zoom);
+          const length = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+          sinceArrow += length;
+          if (sinceArrow < 120 || length < 4) continue;
+          sinceArrow = 0;
+          const deg = Math.round(Math.atan2(pb.x - pa.x, -(pb.y - pa.y)) * 180 / Math.PI);
+          const mid = [(line[k][0] + line[k + 1][0]) / 2, (line[k][1] + line[k + 1][1]) / 2];
+          L.marker(mid, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'route-arrow', iconSize: [18, 18],
+            html: '<svg viewBox="0 0 24 24" style="transform:rotate(' + deg + 'deg)" aria-hidden="true"><path d="M12 1.5 20 20 12 15.5 4 20Z"/></svg>' }) }).addTo(layer);
+        }
+      }
+    },
+    show(route, parent) { r = route; if (layer) layer.remove(); layer = L.layerGroup().addTo(parent); view.draw(); },
+    clear() { r = null; if (layer) layer.remove(); layer = null; }
+  };
+  map.on('zoomend', () => view.draw());
+  roadViews.add(view);
+  return view;
+}
+function routePins(layer, r, day) {
+  const pts = [];
+  routeStops(r).forEach(({ s, t, point }) => {
+    pts.push(point);
+    const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
+    L.marker(point, { zIndexOffset: 500, icon: L.divIcon({ className: 'pin-icon route-pin', html: `<span class="pin-dot">${no}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }) })
+      .bindTooltip(s.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pin-name' })
+      .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name }), day) : openSheet(spotObj(s))).addTo(layer);
+  });
   return pts;
 }
-let rmap = null, rlayer = null;
+let rmap = null, rlayer = null, rroad = null;
 function openRouteMap(r, day) {
   $('rmapTitle').textContent = r.name + '・路線地圖';
   $('rmap').hidden = false;
@@ -568,9 +781,11 @@ function openRouteMap(r, day) {
     rmap = L.map('rmapBox', { zoomControl: true });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(rmap);
     rmap.on('zoomend moveend', () => declutter('rmapBox'));
+    rroad = RoadView(rmap);
   }
   if (rlayer) rlayer.remove();
   rlayer = L.layerGroup().addTo(rmap);
+  rroad.show(r, rlayer);
   const pts = routePins(rlayer, r, day);
   setTimeout(() => { rmap.invalidateSize(); if (pts.length) rmap.fitBounds(pts, { padding: [30, 30] }); declutter('rmapBox'); }, 60);
 }
@@ -679,7 +894,7 @@ const MapView = (() => {
     { k: 'spot', n: '景點', fg: '#0369A1', bg: '#E6F3FB', bd: '#A9D3EE', pic: 'assets/cat_spot.jpg' },
     { k: 'temple', n: '廟宇', fg: '#9333EA', bg: '#F7EBFE', bd: '#DDB8F5', pic: 'assets/cat_temple.jpg' }];
   const data = { food: [], spot: [], temple: [] };
-  let loaded = false, on = ['route'], region = '', q = '', items = [], shown = 0, io = null, map = null, layer = null;
+  let loaded = false, on = ['route'], region = '', q = '', items = [], shown = 0, io = null, map = null, layer = null, road = null;
   /* 第四個按鈕「路線」：五大路線，顯示照首頁底下的路線模式；有選區域（鄉市）只列經過該區域的路線 */
   $('cats').innerHTML = CATS.map(c => `<button type="button" data-cat="${c.k}" style="--fg:${c.fg};--bg:${c.bg};--bd:${c.bd}">${c.n}</button>`).join('')
     + '<button type="button" data-cat="route" style="--fg:#a8231b;--bg:#fdecea;--bd:#f2b8b2">路線</button>';
@@ -751,6 +966,8 @@ const MapView = (() => {
       map = L.map('mapBox', { preferCanvas: true, minZoom: 9, maxZoom: 20 }).setView([23.49, 119.555], 10);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
       map.on('zoomend moveend', () => declutter('mapBox'));
+      road = RoadView(map);
+      road = RoadView(map);
     }
   }
   function routeOnMap(r, d) {
@@ -758,12 +975,14 @@ const MapView = (() => {
     ensureMap();
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
+    road.show(r, layer);
     const pts = routePins(layer, r, d);
     setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [30, 30] }); declutter('mapBox'); }, 60);
   }
   function pins() {
     if (!IS_WIDE()) return;
     ensureMap();
+    road.clear();
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
     const pts = [];

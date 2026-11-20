@@ -13,7 +13,9 @@ const ROUTES = [
      {
       "n": 1,
       "name": "全家便利商店 澎湖尚洪店",
-      "url": "https://maps.google.com/?q=23.5692939,119.5987243"
+      "url": "https://maps.google.com/?q=23.5692939,119.5987243",
+      "lat": 23.5692939,
+      "lng": 119.5987243
      },
      {
       "n": 2,
@@ -231,7 +233,9 @@ const ROUTES = [
       "n": 27,
       "name": "外垵小希臘",
       "pic": "1MjsRhbwYcR8jL2OpL3m5v_OrYsaWXiEI",
-      "url": "https://maps.google.com/?q=23.5639893,119.4774794"
+      "url": "https://maps.google.com/?q=23.5639893,119.4774794",
+      "lat": 23.5639893,
+      "lng": 119.4774794
      },
      {
       "n": 28,
@@ -273,7 +277,9 @@ const ROUTES = [
       "n": 32,
       "name": "池東大果葉玄武岩",
       "pic": "11qwDxXofrwUpLi1uk77T47yhGIoWTOCv",
-      "url": "https://maps.app.goo.gl/rcuNd72xWZE28sZH7"
+      "url": "https://maps.app.goo.gl/rcuNd72xWZE28sZH7",
+      "lat": 23.595584,
+      "lng": 119.5163386
      },
      {
       "n": 33,
@@ -296,7 +302,9 @@ const ROUTES = [
      {
       "n": 35,
       "name": "漁翁島遊客中心",
-      "url": "https://maps.google.com/?q=23.6393871,119.5407852"
+      "url": "https://maps.google.com/?q=23.6393871,119.5407852",
+      "lat": 23.6393871,
+      "lng": 119.5407852
      },
      {
       "n": 36,
@@ -473,7 +481,9 @@ const ROUTES = [
      {
       "n": 12,
       "name": "龍門閉鎖陣地",
-      "url": "https://maps.app.goo.gl/mARV9HwPdAdrNX1t7"
+      "url": "https://maps.app.goo.gl/mARV9HwPdAdrNX1t7",
+      "lat": 23.5556431,
+      "lng": 119.6757599
      },
      {
       "n": 13,
@@ -493,7 +503,9 @@ const ROUTES = [
      {
       "n": 15,
       "name": "果葉觀日樓",
-      "url": "https://maps.app.goo.gl/QoZcdSLrywSad7iT6"
+      "url": "https://maps.app.goo.gl/QoZcdSLrywSad7iT6",
+      "lat": 23.5790466,
+      "lng": 119.6808943
      },
      {
       "n": 16,
@@ -629,7 +641,9 @@ const ROUTES = [
      {
       "n": 31,
       "name": "全家便利商店 澎湖尚洪店",
-      "url": "https://maps.google.com/?q=23.5692939,119.5987243"
+      "url": "https://maps.google.com/?q=23.5692939,119.5987243",
+      "lat": 23.5692939,
+      "lng": 119.5987243
      }
     ]
    }
@@ -872,7 +886,9 @@ const ROUTES = [
      {
       "n": 3,
       "name": "施公祠",
-      "url": "https://maps.app.goo.gl/eBMhfbx5UdQ64bud6"
+      "url": "https://maps.app.goo.gl/eBMhfbx5UdQ64bud6",
+      "lat": 23.5645601,
+      "lng": 119.5641774
      },
      {
       "n": 4,
