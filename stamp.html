@@ -192,7 +192,7 @@ const GOV_ACT = { "文化局": "2027超級龜龜" };
 function lxText(o){
   const yr = v => { const m = v.match(/^(\d{3,4})\/(\d{1,2})\/(\d{1,2})$/); if(!m) return v; let y=+m[1]; if(y<1911) y+=1911; return y+"/"+m[2].padStart(2,"0")+"/"+m[3].padStart(2,"0"); };
   const DATE = /(\d{3,4}\/\d{1,2}\/\d{1,2})/g;
-  const headRe = /^\s*((?:\d{3,4}\/\d{1,2}\/\d{1,2}\s*(?:(?:-|－|至|到)\s*\d{3,4}\/\d{1,2}\/\d{1,2})?\s*)*)((?:週[一二三四五六日](?:、週[一二三四五六日])*\s*)?)((?:\d{1,2}[:：]\d{2}(?:\s*[-－]\s*\d{1,2}[:：]\d{2})?)?)\s*(.*)$/;
+  const headRe = /^\s*((?:\d{3,4}\/\d{1,2}\/\d{1,2}\s*(?:(?:-|－|至|到)\s*\d{3,4}\/\d{1,2}\/\d{1,2})?\s*、?\s*)*)((?:週[一二三四五六日](?:、週[一二三四五六日])*\s*)?)((?:\d{1,2}[:：]\d{2}(?:\s*[-－]\s*\d{1,2}[:：]\d{2})?)?)\s*(.*)$/;
   const parts = String(o["元宵活動內容"]||"").split(/[、|｜│]/).map(x=>x.trim()).filter(Boolean);
   const items = []; let buf = "";
   parts.forEach(p => { const cur = buf ? buf+"、"+p : p; const m = cur.match(headRe); if (m && m[4].trim()) { items.push(cur); buf = ""; } else buf = cur; });
@@ -205,8 +205,19 @@ function lxText(o){
     return { name: m[4].trim(), label, k: [ds[0]||base[0]||"", tm.split("-")[0]||"", ds[ds.length-1]||base[base.length-1]||""], i }; })
     .filter(r => !govActs.includes(r.name))
     .sort((a,b) => { for (let k=0;k<3;k++) if (a.k[k]!==b.k[k]) return a.k[k]<b.k[k]?-1:1; return a.i-b.i; });
-  const all = [...base, ...rows.flatMap(r=>[r.k[0], r.k[2]])].filter(Boolean).sort(), a = all[0]||"", b = all[all.length-1]||"";
-  const range = !a ? "" : a===b ? a : a+"-"+b;
+  /* 活動日期：單一天 2027/02/20；連續 2027/02/20-2027/02/22；跳著只有兩天 2027/02/20、2027/02/22；跳著三天以上 第一天-最後一天 */
+  const nx = d => { const x = new Date(d.replace(/\//g,"-")+"T00:00:00"); x.setDate(x.getDate()+1); return x.getFullYear()+"/"+String(x.getMonth()+1).padStart(2,"0")+"/"+String(x.getDate()).padStart(2,"0"); };
+  const spanOf = (a,b) => { const out=[]; let d=a; for(let i=0;d<=b&&i<400;i++){ out.push(d); d=nx(d); } return out; };
+  const all0 = [...base, ...items.flatMap(it=>{ const m = it.match(headRe); return (m[1].match(DATE)||[]); }).map(yr)].sort();
+  const lo = all0[0]||"", hi = all0[all0.length-1]||"";
+  const daySet = new Set();
+  items.forEach(it => { const m = it.match(headRe); const h = (m[1]||"").replace(/\s+/g,""); const segs = h.split(/、/).filter(Boolean);
+    if(!segs.length || !(h.match(DATE))){ if(lo) spanOf(lo,hi).forEach(d=>daySet.add(d)); return; }
+    segs.forEach(sg => { const ds = (sg.match(DATE)||[]).map(yr); if(ds.length>=2) spanOf(ds[0],ds[1]).forEach(d=>daySet.add(d)); else if(ds.length) daySet.add(ds[0]); }); });
+  if(!daySet.size && lo) spanOf(lo,hi).forEach(d=>daySet.add(d));
+  const runs = []; [...daySet].sort().forEach(d => { const r = runs[runs.length-1]; if(r && nx(r[1])===d) r[1]=d; else runs.push([d,d]); });
+  const ad = [...daySet].sort(), fa = ad[0]||"", fb = ad[ad.length-1]||"";
+  const range = !runs.length ? "" : runs.length===1 ? (fa===fb ? fa : fa+"-"+fb) : (ad.length===2 ? fa+"、"+fb : fa+"-"+fb);
   return { acts: rows.map(r=>r.label).join("\n"), gov: govs.join("\n"), range };
 }
 
