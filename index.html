@@ -73,7 +73,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .btn-line{height:44px;border:1.5px solid var(--red);border-radius:22px;background:#fff;color:var(--red);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:4px}
 .empty{padding:18px;border-radius:14px;background:#fff;border:1px solid var(--line);font-size:14px;color:var(--muted);text-align:center}
 /* 詳細資訊 */
-.sheet{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;background:rgba(42,26,18,.45)}
+.sheet{position:fixed;inset:0;z-index:1060;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;background:rgba(42,26,18,.45)}
 .sheet .box{width:100%;max-width:560px;max-height:82%;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:18px 18px calc(22px + env(safe-area-inset-bottom));background:#fff;border-radius:20px 20px 0 0}
 .sheet .hd{display:flex;align-items:center;gap:8px}
 .sheet .hd b{font-size:20px;font-weight:900;color:var(--deep)}
@@ -94,6 +94,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .lx-tag.red{background:#d8392f;color:#fff}
 .sheet .nav{height:48px;border:0;border-radius:24px;background:var(--red);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 .zoom{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;overflow:auto}
+.dm-link{color:var(--red);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .zoom img{max-width:100%;max-height:100%;object-fit:contain}
 .zoom .x{position:fixed;top:calc(12px + env(safe-area-inset-top));right:12px;width:44px;height:44px;border:0;border-radius:22px;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center}
 .rmap{position:fixed;inset:0;z-index:1050;display:flex;flex-direction:column;background:#fff}
@@ -493,18 +494,32 @@ function itemLive(t, it) {
   else if (col.length) { a = col[0]; b = col[1] || '24:00'; }
   return now >= a && now < b;
 }
+/* 活動DM：2027元宵「各單位活動DM」資料夾，檔名＝官方活動名稱（例：2027超級龜龜）或廟名（同名廟加區域，例：通梁-保安宮） */
+const DM_API = '';
+let DMS = {};
+const dmNorm = v => String(v || '').replace(/\s+/g, '').replace(/[－—–]/g, '-');
+if (DM_API) fetch(DM_API, { cache: 'no-store' }).then(r => r.json()).then(list => { DMS = {}; list.forEach(f => { DMS[dmNorm(f.name)] = f.id; }); }).catch(() => { });
+function templeDmKeys(t) {
+  const same = Object.values(TEMPLES).filter(x => x.name === t.name).length > 1;
+  return same ? [t.vil, t.town].filter(Boolean).flatMap(a => [a + '-' + t.name, a + t.name]) : [t.name];
+}
+function dmOf(names) { for (const n of names) { const id = DMS[dmNorm(n)]; if (id) return picUrl(id, 2000); } return ''; }
+const govDm = g => g.act ? dmOf([g.act, g.unit + '-' + g.act]) : '';
+const itemDm = (t, it) => dmOf(templeDmKeys(t).flatMap(k => [k + '-' + it.name, k]));
+const dmWrap = (text, url) => url ? `<span class="dm-link" data-zoom="${esc(url)}">${text}</span>` : text;
+function govHtml(t) { return t.govs.map(g => dmWrap(esc(g.act ? g.unit + '-' + g.act : g.unit), govDm(g))).join('、'); }
 /* 活動內容：有日期或時間的一項一行；沒有的排同一行；day＝首頁點的日期 */
 function itemsHtml(t, day) {
   const one = it => {
     const label = [LX.dayLabel(it), LX.timeLabel(it), it.name].filter(Boolean).join(' ');
     const off = day && !it.days.includes(day), live = itemLive(t, it);
-    return `<span class="lx${off ? ' off' : ''}${live ? ' live' : ''}">${esc(label)}${off ? '<i class="lx-tag gray">非本日</i>' : ''}${live ? '<i class="lx-tag red">進行中</i>' : ''}</span>`;
+    return `<span class="lx${off ? ' off' : ''}${live ? ' live' : ''}">${dmWrap(esc(label), itemDm(t, it))}${off ? '<i class="lx-tag gray">非本日</i>' : ''}${live ? '<i class="lx-tag red">進行中</i>' : ''}</span>`;
   };
   const timed = t.items.filter(it => LX.dayLabel(it) || LX.timeLabel(it)), plain = t.items.filter(it => !(LX.dayLabel(it) || LX.timeLabel(it)));
   return `<span class="lx-box">${timed.map(it => `<span class="lx-row">${one(it)}</span>`).join('')}${plain.length ? `<span class="lx-row lx-inline">${plain.map(one).join('')}</span>` : ''}</span>`;
 }
 function templeFields(t, day) {
-  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', rangeText(t.days)], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov], ['地址', t.addr], ['廟宇史蹟', t.history], ['傳說', t.legend]].filter(x => x[1]);
+  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', rangeText(t.days)], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov ? { html: govHtml(t) } : ''], ['地址', t.addr], ['廟宇史蹟', t.history], ['傳說', t.legend]].filter(x => x[1]);
 }
 
 /* ---------- 詳細資訊 ---------- */
@@ -523,10 +538,16 @@ function openSheet(o, day) {
 }
 function closeLayers() {
   let closed = false;
-  ['sheet', 'zoom', 'rmap'].forEach(id => { if (!$(id).hidden) { $(id).hidden = true; closed = true; if (id === 'rmap') Guide.stop(); } });
+  /* 一次只關最上層：DM 放大 → 詳細資訊 → 路線地圖 */
+  const id = ['zoom', 'sheet', 'rmap'].find(k => !$(k).hidden);
+  if (id) { $(id).hidden = true; closed = true; if (id === 'rmap') Guide.stop(); }
   return closed;
 }
-$('sheet').addEventListener('click', e => { if (e.target === $('sheet') || e.target.closest('.x')) history.back(); });
+$('sheet').addEventListener('click', e => {
+  const z = e.target.closest('[data-zoom]');
+  if (z) { $('zoom').querySelector('img').src = z.dataset.zoom; $('zoom').hidden = false; history.pushState({ v: currentView, layer: 'zoom' }, ''); return; }
+  if (e.target === $('sheet') || e.target.closest('.x')) history.back();
+});
 $('zoom').addEventListener('click', () => history.back());
 $('rmapClose').addEventListener('click', () => history.back());
 window.addEventListener('popstate', e => {
