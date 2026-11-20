@@ -513,6 +513,7 @@ function buildTemple(r) {
 const mdText = days => dayText(days).replace(/\d{4}\//g, '');
 /* 活動進行中：以首頁月曆選的日期查詢；選的是今天時再看現在時間是否在時段內 */
 function liveOn(t, it, day) {
+  if (!day) day = typeof Home !== 'undefined' && Home.day ? Home.day() : '';   /* 從地圖點開時，用首頁月曆選的日期 */
   if (!day || day === taipeiToday()) return itemLive(t, it);
   return it.days.includes(day);
 }
