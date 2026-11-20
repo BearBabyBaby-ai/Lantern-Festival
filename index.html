@@ -104,7 +104,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .pin{width:26px;height:26px;border-radius:13px;background:#fff;border:2px solid var(--line);color:var(--muted);font:700 11px/22px var(--font);text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .leaflet-tooltip.pin-name{padding:1px 6px;border-radius:6px;font:700 12px/1.4 var(--font);color:var(--ink);background:rgba(255,255,255,.92);border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .leaflet-tooltip.pin-name::before{display:none}
-#mapBox.names-off .leaflet-tooltip.pin-name{display:none}
+.leaflet-tooltip.pin-name.hide{visibility:hidden}
 .pin.hot{background:var(--gold);border-color:var(--red);color:var(--goldink)}
 /* 地圖 */
 .mq{-webkit-appearance:none;appearance:none;flex:none;height:50px;padding:0 16px;border:1px solid #cfe4ea;border-radius:14px;background:#fff;font-size:16px;color:var(--ink);width:100%}
@@ -499,6 +499,19 @@ window.addEventListener('popstate', e => {
   if (v && v !== currentView) showView(v, false);
 });
 
+/* ---------- 圖釘名稱：一律顯示，名稱互相重疊時只留先排到的那個，放大後會再顯示 ---------- */
+function declutter(boxId) {
+  const box = $(boxId); if (!box) return;
+  const tips = [...box.querySelectorAll('.leaflet-tooltip.pin-name')];
+  tips.forEach(t => t.classList.remove('hide'));
+  const taken = [];
+  tips.forEach(t => {
+    const r = t.getBoundingClientRect();
+    if (taken.some(o => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top)) t.classList.add('hide');
+    else taken.push(r);
+  });
+}
+
 /* ---------- 首頁：月曆＋路線 ---------- */
 const ROUTE_ORDER = ['city', 'suburb', 'north', 'east', 'south'];
 const Home = (() => {
@@ -607,7 +620,8 @@ const Home = (() => {
         .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name }), day) : openSheet(spotObj(s))).addTo(rlayer);
     }));
     if (pts.length > 1) L.polyline(pts, { color: r.color, weight: 3, opacity: .7 }).addTo(rlayer);
-    setTimeout(() => { rmap.invalidateSize(); if (pts.length) rmap.fitBounds(pts, { padding: [30, 30] }); }, 60);
+    setTimeout(() => { rmap.invalidateSize(); if (pts.length) rmap.fitBounds(pts, { padding: [30, 30] }); declutter('rmapBox'); }, 60);
+    if (!rmap._dc) { rmap._dc = 1; rmap.on('zoomend moveend', () => declutter('rmapBox')); }
   }
   function render() { if (!day) pickDefault(); renderCal(); renderRoutes(); }
   return { render };
@@ -691,8 +705,7 @@ const MapView = (() => {
       map = L.map('mapBox', { preferCanvas: true, minZoom: 9, maxZoom: 20 }).setView([23.49, 119.555], 10);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
       /* 圖釘名稱：放大到 13 級以上才顯示，整個澎湖時名稱會疊在一起 */
-      const nameByZoom = () => $('mapBox').classList.toggle('names-off', map.getZoom() < 13);
-      map.on('zoomend', nameByZoom); map.whenReady(nameByZoom);
+      map.on('zoomend moveend', () => declutter('mapBox'));
     }
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
@@ -702,7 +715,7 @@ const MapView = (() => {
       pts.push([o.lat, o.lng]);
       L.circleMarker([o.lat, o.lng], { radius: 7, color: '#fff', weight: 2, fillColor: catOf(o).fg, fillOpacity: .95 }).bindTooltip(o.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pin-name' }).on('click', () => openSheet(o)).addTo(layer);
     });
-    setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [24, 24], maxZoom: 15 }); }, 60);
+    setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [24, 24], maxZoom: 15 }); declutter('mapBox'); }, 60);
   }
   const IS_WIDE = () => matchMedia('(min-width:821px)').matches;
   $('cats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; const k = b.dataset.cat; on = on.includes(k) ? on.filter(x => x !== k) : on.concat(k); render(); });
