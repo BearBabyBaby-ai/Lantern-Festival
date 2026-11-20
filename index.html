@@ -679,7 +679,7 @@ const MapView = (() => {
     { k: 'spot', n: '景點', fg: '#0369A1', bg: '#E6F3FB', bd: '#A9D3EE', pic: 'assets/cat_spot.jpg' },
     { k: 'temple', n: '廟宇', fg: '#9333EA', bg: '#F7EBFE', bd: '#DDB8F5', pic: 'assets/cat_temple.jpg' }];
   const data = { food: [], spot: [], temple: [] };
-  let loaded = false, on = [], region = '', q = '', items = [], shown = 0, io = null, map = null, layer = null;
+  let loaded = false, on = ['route'], region = '', q = '', items = [], shown = 0, io = null, map = null, layer = null;
   /* 第四個按鈕「路線」：五大路線，顯示照首頁底下的路線模式；有選區域（鄉市）只列經過該區域的路線 */
   $('cats').innerHTML = CATS.map(c => `<button type="button" data-cat="${c.k}" style="--fg:${c.fg};--bg:${c.bg};--bd:${c.bd}">${c.n}</button>`).join('')
     + '<button type="button" data-cat="route" style="--fg:#a8231b;--bg:#fdecea;--bd:#f2b8b2">路線</button>';
@@ -775,7 +775,7 @@ const MapView = (() => {
     setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [24, 24], maxZoom: 15 }); declutter('mapBox'); }, 60);
   }
   const IS_WIDE = () => matchMedia('(min-width:821px)').matches;
-  $('cats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; const k = b.dataset.cat; /* 比照熊寶系統：一次只看一個分類，再點一次回到全部 */ on = on.includes(k) ? [] : [k]; render(); });
+  $('cats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; const k = b.dataset.cat; /* 預設顯示路線；美食、景點、廟宇點了才顯示，再點一次回到路線 */ on = on.includes(k) ? ['route'] : [k]; render(); });
   $('mr').addEventListener('change', e => { region = e.target.value; render(); });
   let qt = null; $('mq').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { q = e.target.value; render(); }, 250); });
   $('cards').addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openSheet(items[Number(b.dataset.i)]); });
