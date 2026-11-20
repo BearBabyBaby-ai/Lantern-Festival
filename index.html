@@ -966,7 +966,10 @@ const Guide = (() => {
     else if (k === 'voice') { voice = !voice; if (!voice) { if (TTS) TTS.stop().catch(() => { }); else if ('speechSynthesis' in window) speechSynthesis.cancel(); } paint(); }
     else if (k === 'gmap') {
       const st = nextStop();
-      if (st) window.open(`https://www.google.com/maps/dir/?api=1&destination=${st.point[0]},${st.point[1]}&travelmode=${walking() ? 'walking' : 'driving'}`, '_blank');
+      if (!st) return;
+      /* 預設騎機車：Android 直接開 Google Maps 機車導航；其他裝置開 Google Maps 路線 */
+      if (/Android/i.test(navigator.userAgent)) location.href = `google.navigation:q=${st.point[0]},${st.point[1]}&mode=l`;
+      else window.open(`https://www.google.com/maps/dir/?api=1&destination=${st.point[0]},${st.point[1]}&travelmode=driving`, '_blank');
     }
   });
   function start() {
