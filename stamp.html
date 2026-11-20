@@ -201,9 +201,9 @@ function lxText(o){
   const govs = String(o["參加政府單位活動(澎管處、文化局)"]||"").split(/[、,，|｜│]/).map(x=>x.trim()).filter(Boolean).map(x => { const m = x.match(/^([^-－]+)[-－](.+)$/); return m ? m[1].trim()+"-"+m[2].trim() : (GOV_ACT[x] ? x+"-"+GOV_ACT[x] : x); });
   const govActs = govs.map(g => g.split("-").slice(1).join("-")).filter(Boolean);
   const rows = items.map((it,i) => { const m = it.match(headRe); const ds = (m[1].match(DATE)||[]).map(yr).sort(); const tm = (m[3]||"").replace(/：/g,":");
-    const label = [m[1].trim().replace(/\d{3,4}\//g,"").replace(/\s+/g,""), m[2].trim(), tm.replace(/\s+/g,""), m[4].trim()].filter(Boolean).join(" ");
+    const own = m[1].trim().replace(/\d{3,4}\//g,"").replace(/\s+/g,""), bl = base.length ? (base[0]===base[base.length-1] ? base[0].slice(5) : base[0].slice(5)+"-"+base[base.length-1].slice(5)) : "";
+    const label = [own || bl, m[2].trim(), tm.replace(/\s+/g,""), m[4].trim()].filter(Boolean).join(" ");
     return { name: m[4].trim(), label, k: [ds[0]||base[0]||"", tm.split("-")[0]||"", ds[ds.length-1]||base[base.length-1]||""], i }; })
-    .filter(r => !govActs.includes(r.name))
     .sort((a,b) => { for (let k=0;k<3;k++) if (a.k[k]!==b.k[k]) return a.k[k]<b.k[k]?-1:1; return a.i-b.i; });
   /* 活動日期：單一天 2027/02/20；連續 2027/02/20-2027/02/22；跳著只有兩天 2027/02/20、2027/02/22；跳著三天以上 2027/02/20、02/22、02/24；連續段加另一天 2027/02/20-02/21、02/24 */
   const nx = d => { const x = new Date(d.replace(/\//g,"-")+"T00:00:00"); x.setDate(x.getDate()+1); return x.getFullYear()+"/"+String(x.getMonth()+1).padStart(2,"0")+"/"+String(x.getDate()).padStart(2,"0"); };
