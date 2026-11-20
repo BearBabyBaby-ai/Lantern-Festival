@@ -444,7 +444,8 @@ function buildTemple(r) {
   });
   return { kind: 'temple', key: tkOf(r), name, town: clean(r['區域(鄉市)']), vil: clean(r['區域(村里)']), deity: clean(r['主祀']), addr: clean(r['地址']), tel: clean(r['電話']),
     lat: num(r.Latitude), lng: num(r.Longitude), pic: driveId(r['圖資來源']), mapUrl: clean(r['完整網址']) || clean(r['短網址']),
-    days, time: clean(r['元宵活動時間']), content: clean(r['元宵活動內容']), items, gov: clean(r['參加政府單位活動(澎管處、文化局)']) };
+    days, time: clean(r['元宵活動時間']), content: clean(r['元宵活動內容']), items, gov: clean(r['參加政府單位活動(澎管處、文化局)']),
+    history: clean(r['廟宇史蹟']), legend: clean(r['傳說']) };
 }
 /* 現在（台灣時間）是否在細項的時段內 */
 function itemLive(t, it) {
@@ -467,7 +468,7 @@ function itemsHtml(t, day) {
   return `<span class="lx-box">${timed.map(it => `<span class="lx-row">${one(it)}</span>`).join('')}${plain.length ? `<span class="lx-row lx-inline">${plain.map(one).join('')}</span>` : ''}</span>`;
 }
 function templeFields(t, day) {
-  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', rangeText(t.days)], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov], ['地址', t.addr]].filter(x => x[1]);
+  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', rangeText(t.days)], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov], ['地址', t.addr], ['廟宇史蹟', t.history], ['傳說', t.legend]].filter(x => x[1]);
 }
 
 /* ---------- 詳細資訊 ---------- */
@@ -562,7 +563,8 @@ const Home = (() => {
       <button type="button" class="btn-line" id="routeMapBtn">${svg('map', 16)}路線地圖</button></div>`;
   }
   function spotObj(s) {
-    const fields = [['鄉市／村里', s.place], ['地址', s.addr], ['簡易說明', s.desc]].filter(x => x[1]);
+    const live = MapView.findSpot(s.name);
+    const fields = [['鄉市／村里', s.place], ['地址', s.addr], ['簡易說明', (live && live.desc) || s.desc]].filter(x => x[1]);
     return { kind: 'spot', name: s.name, pic: s.pic, fields, lat: s.lat ?? null, lng: s.lng ?? null, addr: s.addr };
   }
   $('cal').addEventListener('click', e => { const b = e.target.closest('[data-day]'); if (!b) return; day = b.dataset.day; renderCal(); renderRoutes(); });
@@ -620,6 +622,7 @@ async function loadTemples() {
     Object.assign(TEMPLES, map);
     Object.values(map).forEach(t => t.days.forEach(d => { (byDay[d] = byDay[d] || []); if (!byDay[d].includes(t.key)) byDay[d].push(t.key); }));
     MapView.setData('temple', list);
+    MapView.load();
   } catch (e) {
     $('routeBox').innerHTML = '<div class="empty">元宵活動資料讀取失敗，請確認網路後重新開啟</div>';
   }
@@ -639,7 +642,7 @@ const MapView = (() => {
     if (k === 'spot') {
       const name = clean(r['景點名稱']); if (!name) return null;
       const town = clean(r['區域(鄉市)']), vil = clean(r['區域(村里)']), c1 = clean(r['主類別']), c2 = clean(r['次類別']), addr = clean(r['地址']), desc = clean(r['簡易說明']);
-      return { kind: 'spot', name, town, vil, addr, lat: num(r.Latitude), lng: num(r.Longitude), pic: driveId(r['圖資來源']), mapUrl: clean(r['完整網址']) || clean(r['短網址']), tag: '景點',
+      return { kind: 'spot', name, town, vil, addr, desc, lat: num(r.Latitude), lng: num(r.Longitude), pic: driveId(r['圖資來源']), mapUrl: clean(r['完整網址']) || clean(r['短網址']), tag: '景點',
         meta: [vil, [c1, c2].filter(Boolean).join('・')].filter(Boolean).join('・'), fields: [['鄉市／村里', [town, vil].filter(Boolean).join('／')], ['類別', [c1, c2].filter(Boolean).join('・')], ['地址', addr], ['簡易說明', desc]].filter(x => x[1]) };
     }
     const name = clean(r['名稱']); if (!name) return null;
@@ -707,7 +710,10 @@ const MapView = (() => {
   let qt = null; $('mq').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { q = e.target.value; render(); }, 250); });
   $('cards').addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openSheet(items[Number(b.dataset.i)]); });
   function show() { load(); render(); }
-  return { setData, show };
+  /* 路線站點用：依名稱找景點資料（簡易說明） */
+  const normName = v => String(v || '').replace(/[\s\-－（）()]/g, '').replace(/温/g, '溫').replace(/樑/g, '梁');
+  function findSpot(name) { const n = normName(name); return data.spot.find(o => normName(o.name) === n) || data.spot.find(o => normName(o.name).includes(n) || n.includes(normName(o.name))); }
+  return { setData, show, load, findSpot };
 })();
 
 /* ---------- 集章（元宵集章卡） ---------- */
