@@ -718,7 +718,7 @@ const MapView = (() => {
     setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [24, 24], maxZoom: 15 }); declutter('mapBox'); }, 60);
   }
   const IS_WIDE = () => matchMedia('(min-width:821px)').matches;
-  $('cats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; const k = b.dataset.cat; on = on.includes(k) ? on.filter(x => x !== k) : on.concat(k); render(); });
+  $('cats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; const k = b.dataset.cat; /* 比照熊寶系統：一次只看一個分類，再點一次回到全部 */ on = on.includes(k) ? [] : [k]; render(); });
   $('mr').addEventListener('change', e => { region = e.target.value; render(); });
   let qt = null; $('mq').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { q = e.target.value; render(); }, 250); });
   $('cards').addEventListener('click', e => { const b = e.target.closest('.card'); if (b) openSheet(items[Number(b.dataset.i)]); });
