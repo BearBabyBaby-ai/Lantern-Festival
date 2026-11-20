@@ -1146,6 +1146,7 @@ const Home = (() => {
 async function loadTemples() {
   try {
     const rows = await loadRows('temple');
+    window.TEMPLE_ROWS = rows;   /* 集章卡直接沿用，不再另外讀取 */
     const list = rows.map(buildTemple).filter(keepPlace);
     const map = {}; byDay = {};
     list.forEach(t => { if (!map[t.key]) map[t.key] = t; });

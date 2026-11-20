@@ -366,7 +366,7 @@ function lxText(o){
   }
   function buildPlaces(catKey, table){
     const seen = {};
-    return toObjects(table).map(o=>{
+    return (table.length && !Array.isArray(table[0]) ? table : toObjects(table)).map(o=>{
       const p = BUILD[catKey](o); if(!p) return null;
       const lat = parseFloat(String(o.Latitude||"").replace(/,/g,"")), lng = parseFloat(String(o.Longitude||"").replace(/,/g,""));
       if(Number.isFinite(lat) && Number.isFinite(lng)){ p.lat = lat; p.lng = lng; }
@@ -431,9 +431,14 @@ function lxText(o){
   Object.keys(SHEETS).forEach(k=>{ PLACES[k] = buildPlaces(k, SNAPSHOT[k]); });
 
   async function loadLive(){
+    /* 先用主畫面已讀好的資料；沒有才自己讀（失敗自動重試 3 次） */
+    try{ const pr = window.parent !== window && window.parent.TEMPLE_ROWS; if(pr && pr.length){ const list = buildPlaces("temple", pr); if(list.length){ PLACES.temple = list; return; } } }catch(e){}
+    for(let i = 0; i < 3 && !PLACES.temple.length; i++){ if(i) await new Promise(ok=>setTimeout(ok, 2000)); await fetchAll(); }
+  }
+  async function fetchAll(){
     const one = async k => {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(SHEETS[k])}`;
-      const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), 10000);
+      const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), 20000);
       try{
         const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
         if(!res.ok) throw new Error(res.status);
