@@ -218,7 +218,8 @@ function lxText(o){
   const runs = []; [...daySet].sort().forEach(d => { const r = runs[runs.length-1]; if(r && nx(r[1])===d) r[1]=d; else runs.push([d,d]); });
   const ad = [...daySet].sort(), fa = ad[0]||"", fb = ad[ad.length-1]||"";
   const range = !runs.length ? "" : runs.length===1 ? (fa===fb ? fa : fa+"-"+fb) : runs.every(([x,y])=>x===y) ? (runs.length===2 ? fa+"、"+fb : fa+"-"+fb) : runs.map(([x,y])=>x===y?x:x+"-"+y).join("、");
-  return { acts: rows.map(r=>r.label).join("\n"), gov: govs.join("\n"), range };
+  let first = true; const shortRange = range.replace(/\d{4}\/(\d{2}\/\d{2})/g, (m, md) => first ? (first = false, m) : md);
+  return { acts: rows.map(r=>r.label).join("\n"), gov: govs.join("\n"), range: shortRange };
 }
 
 (function(){

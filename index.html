@@ -383,7 +383,7 @@ function datesOf(range) {
 /* 元宵日期：比照熊寶系統 2027/02/20、2027/02/20-2027/02/22；活動內容細項 02/20、02/20-02/22 */
 const rangeText = days => { if (!days.length) return ''; const a = days[0], b = days[days.length - 1]; return a === b ? a : `${a}-${b}`; };
 /* 活動日期：單一天 2027/02/20；連續 2027/02/20-2027/02/22；跳著只有兩天 2027/02/20、2027/02/22；跳著三天以上 第一天-最後一天；有連續段加另一天 2027/02/20-2027/02/21、2027/02/24 */
-/* 路線列表：只有第一個日期寫年份，例 2027/02/20-02/21、02/27 */
+/* 活動日期只有第一個日期寫年份，例 2027/02/20-02/21、02/27（路線列表、詳細資訊、集章卡） */
 const shortDay = txt => { let first = true; return txt.replace(/\d{4}\/(\d{2}\/\d{2})/g, (m, md) => first ? (first = false, m) : md); };
 function dayText(days) {
   const next = d => { const x = new Date(d.replace(/\//g, '-') + 'T00:00:00'); x.setDate(x.getDate() + 1); return `${x.getFullYear()}/${String(x.getMonth() + 1).padStart(2, '0')}/${String(x.getDate()).padStart(2, '0')}`; };
@@ -546,7 +546,7 @@ function itemsHtml(t, day) {
   return `<span class="lx-box">${timed.map(it => `<span class="lx-row">${one(it)}</span>`).join('')}${plain.length ? `<span class="lx-row lx-inline">${plain.map(one).join('')}</span>` : ''}</span>`;
 }
 function templeFields(t, day) {
-  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', dayText(t.actDays)], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov ? { html: govHtml(t) } : ''], ['地址', t.addr], ['廟宇史蹟', t.history], ['傳說', t.legend]].filter(x => x[1]);
+  return [['鄉市／村里', [t.town, t.vil].filter(Boolean).join('／')], ['主祀', t.deity], ['元宵日期', shortDay(dayText(t.actDays))], ['活動內容', t.items.length ? { html: itemsHtml(t, day) } : ''], ['元宵活動時間', t.time], ['配合單位', t.gov ? { html: govHtml(t) } : ''], ['地址', t.addr], ['廟宇史蹟', t.history], ['傳說', t.legend]].filter(x => x[1]);
 }
 
 /* ---------- 詳細資訊 ---------- */
