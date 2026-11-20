@@ -111,8 +111,9 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .mr{display:flex;align-items:center;gap:12px}
 .mr label{flex:none;font-size:16px;font-weight:900;color:#0b3954}
 .mr select{flex:1;min-width:0;height:46px;padding:0 12px;border:1px solid #cfe4ea;border-radius:12px;background:#fff;font-size:16px;font-weight:700;color:var(--ink)}
-.cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.cats button{height:48px;border:2px solid var(--bd);border-radius:14px;background:var(--bg);color:var(--fg);font-size:17px;font-weight:900}
+.cats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.cats button{min-width:0;height:48px;padding:0 4px;border:2px solid var(--bd);border-radius:14px;background:var(--bg);color:var(--fg);font-size:16px;font-weight:900;white-space:nowrap}
+.map-routes{display:flex;flex-direction:column;gap:14px}
 .cats button.on{background:var(--fg);border-color:var(--fg);color:#fff}
 .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .card{display:flex;flex-direction:column;min-width:0;padding:0;text-align:left;background:#fff;border:1px solid var(--line);border-left:4px solid var(--cc);border-radius:14px;overflow:hidden;box-shadow:0 4px 12px rgba(7,43,75,.08);color:inherit}
@@ -248,6 +249,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
           <div class="cats" id="cats"></div>
           <div id="mapEmpty" class="empty" hidden>這個區域目前沒有符合的資料</div>
           <div class="cards" id="cards"></div>
+          <div id="mapRoutes" class="map-routes" hidden></div>
         </div>
         <div id="mapBox"></div>
       </div>
@@ -514,8 +516,111 @@ function declutter(boxId) {
 
 /* ---------- 首頁：月曆＋路線 ---------- */
 const ROUTE_ORDER = ['city', 'suburb', 'north', 'east', 'south'];
+/* ---------- 路線面板（首頁底下的路線模式；地圖的「路線」也用同一套） ---------- */
+function stopsOf(r) {
+  /* 新增廟宇：排在指定站之後，不編號 */
+  const extra = (typeof EXTRA_TEMPLES !== 'undefined' ? EXTRA_TEMPLES : []).filter(x => x.route === r.key);
+  return r.secs.map(sec => {
+    const list = [];
+    sec.stops.forEach(s => {
+      list.push(s);
+      extra.filter(x => x.after === s.name).forEach(x => list.push({ name: x.label || x.name, tk: extraKey(x), extra: true }));
+    });
+    return { title: sec.title, stops: list };
+  });
+}
+const activeIn = (r, day) => { const today = byDay[day] || []; const keys = new Set(); stopsOf(r).forEach(sec => sec.stops.forEach(s => { if (s.tk && today.includes(s.tk)) keys.add(s.tk); })); return keys.size; };
+/* 路線經過的鄉市（起點、終點不算） */
+function routeTowns(r) {
+  const all = stopsOf(r).flatMap(sec => sec.stops), set = new Set();
+  all.slice(1, -1).forEach(s => {
+    const t = s.tk ? TEMPLES[s.tk] : null;
+    const town = t ? t.town : String(s.place || '').split('／')[0] || ((MapView.findSpot(s.name) || {}).town || '');
+    if (town) set.add(town);
+  });
+  return set;
+}
+function spotObj(s) {
+  const live = MapView.findSpot(s.name);
+  const fields = [['鄉市／村里', s.place], ['地址', s.addr], ['簡易說明', (live && live.desc) || s.desc]].filter(x => x[1]);
+  return { kind: 'spot', name: s.name, pic: s.pic, fields, lat: s.lat ?? null, lng: s.lng ?? null, addr: s.addr };
+}
+function routePins(layer, r, day, numbered) {
+  const today = byDay[day] || [], pts = [];
+  stopsOf(r).forEach(sec => sec.stops.forEach(s => {
+    const t = s.tk ? TEMPLES[s.tk] : null, lat = t ? t.lat : s.lat, lng = t ? t.lng : s.lng;
+    if (lat == null || lng == null) return;
+    pts.push([lat, lng]);
+    const hot = !!(t && today.includes(s.tk)), no = s.extra ? '廟' : String(s.n).padStart(2, '0');
+    L.marker([lat, lng], { icon: L.divIcon({ className: '', html: `<div class="pin${hot ? ' hot' : ''}">${no}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+      .bindTooltip(s.name, { permanent: true, direction: 'right', offset: [14, 0], className: 'pin-name' })
+      .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name }), day) : openSheet(spotObj(s))).addTo(layer);
+  }));
+  if (pts.length > 1) L.polyline(pts, { color: r.color, weight: 3, opacity: .7 }).addTo(layer);
+  return pts;
+}
+let rmap = null, rlayer = null;
+function openRouteMap(r, day) {
+  $('rmapTitle').textContent = r.name + '・路線地圖';
+  $('rmap').hidden = false;
+  history.pushState({ v: currentView, layer: 'rmap' }, '');
+  if (!rmap) {
+    rmap = L.map('rmapBox', { zoomControl: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(rmap);
+    rmap.on('zoomend moveend', () => declutter('rmapBox'));
+  }
+  if (rlayer) rlayer.remove();
+  rlayer = L.layerGroup().addTo(rmap);
+  const pts = routePins(rlayer, r, day);
+  setTimeout(() => { rmap.invalidateSize(); if (pts.length) rmap.fitBounds(pts, { padding: [30, 30] }); declutter('rmapBox'); }, 60);
+}
+/* opts.list(day)：[{ r, n }]；opts.day()：目前日期；opts.empty：沒有路線時的文字；opts.onShow(r)：選好路線後 */
+function RoutePanel(boxId, opts) {
+  let route = '';
+  const box = $(boxId), sel = boxId + 'Sel';
+  function render() {
+    const day = opts.day(), list = opts.list(day);
+    if (!list.length) { box.innerHTML = opts.empty(); return; }
+    if (!list.some(x => x.r.key === route)) route = list[0].r.key;
+    const cur = list.find(x => x.r.key === route), r = cur.r, today = byDay[day] || [];
+    const total = r.secs.reduce((n, s) => n + s.stops.length, 0);
+    const secs = stopsOf(r).map(sec => `<div class="sec"><h3>${esc(sec.title)}</h3>${sec.stops.map(s => {
+      const t = s.tk ? TEMPLES[s.tk] : null, hot = !!(t && today.includes(s.tk));
+      if (s.extra && !t) return '';
+      const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
+      const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
+      const pic = t ? t.pic : s.pic;
+      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && t.items.some(it => it.days.includes(day)) ? `<em>${esc(t.items.filter(it => it.days.includes(day)).map(it => it.name).join('、'))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
+    }).join('')}</div>`).join('');
+    box.style.setProperty('--rc', r.color);
+    box.innerHTML = `<div class="rsel-row"><label for="${sel}">元宵路線</label><select id="${sel}" data-rsel>${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
+      <div class="rcard"><div style="display:flex;flex-direction:column;gap:4px"><span class="nm">${esc(r.name)}</span><span class="th">${esc(r.theme)}</span><span class="stat">${total} 站・${cur.n} 間活動廟宇</span></div>
+      <img class="dm" src="${esc(r.dm)}" alt="${esc(r.theme)} 路線DM" data-zoom="${esc(r.dm)}">
+      ${secs}
+      <button type="button" class="btn-line" data-routemap>${svg('map', 16)}路線地圖</button></div>`;
+    if (opts.onShow) opts.onShow(r, day);
+  }
+  box.addEventListener('change', e => { if (e.target.matches('[data-rsel]')) { route = e.target.value; render(); } });
+  box.addEventListener('click', e => {
+    const day = opts.day(), st = e.target.closest('.stop');
+    if (st) {
+      const t = st.dataset.t && TEMPLES[st.dataset.t];
+      if (t) return openSheet(Object.assign({}, t, { name: st.dataset.stop }), day);
+      const r = ROUTES.find(x => x.key === route), s = r.secs.flatMap(x => x.stops).find(x => x.name === st.dataset.stop);
+      if (s) openSheet(spotObj(s));
+      return;
+    }
+    const z = e.target.closest('[data-zoom]');
+    if (z) { $('zoom').querySelector('img').src = z.dataset.zoom; $('zoom').hidden = false; history.pushState({ v: currentView, layer: 'zoom' }, ''); return; }
+    if (e.target.closest('[data-routemap]')) openRouteMap(ROUTES.find(x => x.key === route), day);
+  });
+  return { render, current: () => ROUTES.find(x => x.key === route) };
+}
+
+/* ---------- 首頁：月曆＋路線 ---------- */
+const ROUTE_LIST = () => ROUTE_ORDER.map(k => ROUTES.find(r => r.key === k)).filter(Boolean);
 const Home = (() => {
-  let day = '', month = '', route = '';
+  let day = '', month = '';
   const months = () => [...new Set(Object.keys(byDay).map(k => k.slice(0, 7)))].sort();
   function pickDefault() {
     const keys = Object.keys(byDay).sort();
@@ -540,91 +645,16 @@ const Home = (() => {
     }
     $('cal').innerHTML = html;
   }
-  function stopsOf(r) {
-    /* 新增廟宇：排在指定站之後，不編號 */
-    const extra = (typeof EXTRA_TEMPLES !== 'undefined' ? EXTRA_TEMPLES : []).filter(x => x.route === r.key);
-    return r.secs.map(sec => {
-      const list = [];
-      sec.stops.forEach(s => {
-        list.push(s);
-        extra.filter(x => x.after === s.name).forEach(x => list.push({ name: x.label || x.name, tk: extraKey(x), extra: true }));
-      });
-      return { title: sec.title, stops: list };
-    });
-  }
-  const activeIn = r => { const today = byDay[day] || []; const keys = new Set(); stopsOf(r).forEach(sec => sec.stops.forEach(s => { if (s.tk && today.includes(s.tk)) keys.add(s.tk); })); return keys.size; };
-  function renderRoutes() {
-    const box = $('routeBox');
-    const list = ROUTE_ORDER.map(k => ROUTES.find(r => r.key === k)).filter(Boolean).map(r => ({ r, n: activeIn(r) })).filter(x => x.n > 0);
-    if (!list.length) { box.innerHTML = Object.keys(byDay).length ? '' : '<div class="empty">正在讀取元宵活動資料…</div>'; return; }
-    if (!list.some(x => x.r.key === route)) route = list[0].r.key;
-    const cur = list.find(x => x.r.key === route), r = cur.r, today = byDay[day] || [];
-    const total = r.secs.reduce((n, s) => n + s.stops.length, 0);
-    const secs = stopsOf(r).map(sec => `<div class="sec"><h3>${esc(sec.title)}</h3>${sec.stops.map(s => {
-      const t = s.tk ? TEMPLES[s.tk] : null, hot = !!(t && today.includes(s.tk));
-      if (s.extra && !t) return '';
-      const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
-      const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
-      const pic = t ? t.pic : s.pic;
-      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && t.items.some(it => it.days.includes(day)) ? `<em>${esc(t.items.filter(it => it.days.includes(day)).map(it => it.name).join('、'))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
-    }).join('')}</div>`).join('');
-    box.style.setProperty('--rc', r.color);
-    box.innerHTML = `<div class="rsel-row"><label for="rsel">元宵路線</label><select id="rsel">${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
-      <div class="rcard"><div style="display:flex;flex-direction:column;gap:4px"><span class="nm">${esc(r.name)}</span><span class="th">${esc(r.theme)}</span><span class="stat">${total} 站・${cur.n} 間活動廟宇</span></div>
-      <img class="dm" src="${esc(r.dm)}" alt="${esc(r.theme)} 路線DM" data-zoom="${esc(r.dm)}">
-      ${secs}
-      <button type="button" class="btn-line" id="routeMapBtn">${svg('map', 16)}路線地圖</button></div>`;
-  }
-  function spotObj(s) {
-    const live = MapView.findSpot(s.name);
-    const fields = [['鄉市／村里', s.place], ['地址', s.addr], ['簡易說明', (live && live.desc) || s.desc]].filter(x => x[1]);
-    return { kind: 'spot', name: s.name, pic: s.pic, fields, lat: s.lat ?? null, lng: s.lng ?? null, addr: s.addr };
-  }
-  $('cal').addEventListener('click', e => { const b = e.target.closest('[data-day]'); if (!b) return; day = b.dataset.day; renderCal(); renderRoutes(); });
+  const panel = RoutePanel('routeBox', {
+    day: () => day,
+    list: d => ROUTE_LIST().map(r => ({ r, n: activeIn(r, d) })).filter(x => x.n > 0),
+    empty: () => Object.keys(byDay).length ? '' : '<div class="empty">正在讀取元宵活動資料…</div>'
+  });
+  $('cal').addEventListener('click', e => { const b = e.target.closest('[data-day]'); if (!b) return; day = b.dataset.day; renderCal(); panel.render(); });
   $('calPrev').addEventListener('click', () => { const ms = months(), i = ms.indexOf(month); if (i > 0) { month = ms[i - 1]; renderCal(); } });
   $('calNext').addEventListener('click', () => { const ms = months(), i = ms.indexOf(month); if (i < ms.length - 1) { month = ms[i + 1]; renderCal(); } });
-  $('routeBox').addEventListener('change', e => { if (e.target.id === 'rsel') { route = e.target.value; renderRoutes(); } });
-  $('routeBox').addEventListener('click', e => {
-    const st = e.target.closest('.stop');
-    if (st) {
-      const t = st.dataset.t && TEMPLES[st.dataset.t];
-      if (t) return openSheet(Object.assign({}, t, { name: st.dataset.stop }), day);
-      const r = ROUTES.find(x => x.key === route), s = r.secs.flatMap(x => x.stops).find(x => x.name === st.dataset.stop);
-      if (s) openSheet(spotObj(s));
-      return;
-    }
-    const z = e.target.closest('[data-zoom]');
-    if (z) { $('zoom').querySelector('img').src = z.dataset.zoom; $('zoom').hidden = false; history.pushState({ v: currentView, layer: 'zoom' }, ''); return; }
-    if (e.target.closest('#routeMapBtn')) openRouteMap();
-  });
-  let rmap = null, rlayer = null;
-  function openRouteMap() {
-    const r = ROUTES.find(x => x.key === route), today = byDay[day] || [];
-    $('rmapTitle').textContent = r.name + '・路線地圖';
-    $('rmap').hidden = false;
-    history.pushState({ v: currentView, layer: 'rmap' }, '');
-    if (!rmap) {
-      rmap = L.map('rmapBox', { zoomControl: true });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(rmap);
-    }
-    if (rlayer) rlayer.remove();
-    rlayer = L.layerGroup().addTo(rmap);
-    const pts = [];
-    stopsOf(r).forEach(sec => sec.stops.forEach(s => {
-      const t = s.tk ? TEMPLES[s.tk] : null, lat = t ? t.lat : s.lat, lng = t ? t.lng : s.lng;
-      if (lat == null || lng == null) return;
-      pts.push([lat, lng]);
-      const hot = !!(t && today.includes(s.tk)), no = s.extra ? '廟' : String(s.n).padStart(2, '0');
-      L.marker([lat, lng], { icon: L.divIcon({ className: '', html: `<div class="pin${hot ? ' hot' : ''}">${no}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] }) })
-        .bindTooltip(s.name, { permanent: true, direction: 'right', offset: [14, 0], className: 'pin-name' })
-        .on('click', () => t ? openSheet(Object.assign({}, t, { name: s.name }), day) : openSheet(spotObj(s))).addTo(rlayer);
-    }));
-    if (pts.length > 1) L.polyline(pts, { color: r.color, weight: 3, opacity: .7 }).addTo(rlayer);
-    setTimeout(() => { rmap.invalidateSize(); if (pts.length) rmap.fitBounds(pts, { padding: [30, 30] }); declutter('rmapBox'); }, 60);
-    if (!rmap._dc) { rmap._dc = 1; rmap.on('zoomend moveend', () => declutter('rmapBox')); }
-  }
-  function render() { if (!day) pickDefault(); renderCal(); renderRoutes(); }
-  return { render };
+  function render() { if (!day) pickDefault(); renderCal(); panel.render(); }
+  return { render, day: () => day };
 })();
 
 async function loadTemples() {
@@ -650,7 +680,9 @@ const MapView = (() => {
     { k: 'temple', n: '廟宇', fg: '#9333EA', bg: '#F7EBFE', bd: '#DDB8F5', pic: 'assets/cat_temple.jpg' }];
   const data = { food: [], spot: [], temple: [] };
   let loaded = false, on = [], region = '', q = '', items = [], shown = 0, io = null, map = null, layer = null;
-  $('cats').innerHTML = CATS.map(c => `<button type="button" data-cat="${c.k}" style="--fg:${c.fg};--bg:${c.bg};--bd:${c.bd}">${c.n}</button>`).join('');
+  /* 第四個按鈕「路線」：五大路線，顯示照首頁底下的路線模式；有選區域（鄉市）只列經過該區域的路線 */
+  $('cats').innerHTML = CATS.map(c => `<button type="button" data-cat="${c.k}" style="--fg:${c.fg};--bg:${c.bg};--bd:${c.bd}">${c.n}</button>`).join('')
+    + '<button type="button" data-cat="route" style="--fg:#a8231b;--bg:#fdecea;--bd:#f2b8b2">路線</button>';
   function build(k, r) {
     if (k === 'temple') return r;
     if (k === 'spot') {
@@ -692,21 +724,46 @@ const MapView = (() => {
       io.observe(box.querySelector('.more'));
     }
   }
+  let routePanel = null;
   function render() {
     document.querySelectorAll('#cats button').forEach(b => b.classList.toggle('on', on.includes(b.dataset.cat)));
+    const isRoute = on[0] === 'route';
+    $('cards').hidden = isRoute; $('mapRoutes').hidden = !isRoute;
+    if (isRoute) {
+      $('mapEmpty').hidden = true;
+      if (!routePanel) routePanel = RoutePanel('mapRoutes', {
+        day: () => Home.day(),
+        list: d => ROUTE_LIST().filter(r => !region || routeTowns(r).has(region)).map(r => ({ r, n: activeIn(r, d) })),
+        empty: () => '<div class="empty">這個區域目前沒有符合的資料</div>',
+        onShow: (r, d) => routeOnMap(r, d)
+      });
+      routePanel.render();
+      if (!$('mapRoutes').querySelector('.rcard') && layer) layer.remove();
+      return;
+    }
     items = filtered(); shown = 0; $('cards').innerHTML = '';
     $('mapEmpty').hidden = items.length > 0 || !(data.temple.length || data.spot.length || data.food.length);
     more();
     pins();
   }
-  function pins() {
-    if (!IS_WIDE()) return;
+  function ensureMap() {
     if (!map) {
       map = L.map('mapBox', { preferCanvas: true, minZoom: 9, maxZoom: 20 }).setView([23.49, 119.555], 10);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3qao_1_baf91fd3ee5516cb4c7af7dd', { attribution: '&copy; OpenStreetMap, &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
-      /* 圖釘名稱：放大到 13 級以上才顯示，整個澎湖時名稱會疊在一起 */
       map.on('zoomend moveend', () => declutter('mapBox'));
     }
+  }
+  function routeOnMap(r, d) {
+    if (!IS_WIDE()) return;
+    ensureMap();
+    if (layer) layer.remove();
+    layer = L.layerGroup().addTo(map);
+    const pts = routePins(layer, r, d);
+    setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [30, 30] }); declutter('mapBox'); }, 60);
+  }
+  function pins() {
+    if (!IS_WIDE()) return;
+    ensureMap();
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
     const pts = [];
