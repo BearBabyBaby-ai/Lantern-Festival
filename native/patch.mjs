@@ -7,8 +7,8 @@ const A = 'android/app';
 const RES = `${A}/src/main/res`;
 const ICON = '../icons/icon-512.png';
 const MASK = '../icons/icon-maskable-512.png';
-const VERSION_CODE = 1;
-const VERSION_NAME = '1.0.0';
+const VERSION_CODE = 2;
+const VERSION_NAME = '1.1.0';
 const BAR = '#a8231b';
 const BG = '#fff7ec';
 
@@ -24,6 +24,13 @@ edit(`${A}/src/main/AndroidManifest.xml`, s => must(s, '<uses-permission android
   '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
   '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
   '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />'
+].join('\n')));
+
+// 2-1. 路線引導：鎖屏時繼續定位的常駐通知名稱與顏色
+edit(`${RES}/values/strings.xml`, s => must(s, '</resources>', [
+  '    <string name="capacitor_background_geolocation_notification_channel_name">路線引導</string>',
+  `    <string name="capacitor_background_geolocation_notification_color">${BAR}</string>`,
+  '</resources>'
 ].join('\n')));
 
 // 3. 返回鍵：能回上一頁就回上一頁，沒有上一頁就離開 App
