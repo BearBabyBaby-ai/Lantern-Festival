@@ -495,7 +495,7 @@ function itemLive(t, it) {
   return now >= a && now < b;
 }
 /* 活動DM：2027元宵「各單位活動DM」資料夾，檔名＝官方活動名稱（例：2027超級龜龜）或廟名（同名廟加區域，例：通梁-保安宮） */
-const DM_API = '';
+const DM_API = 'https://script.google.com/macros/s/AKfycbyZ1guj489QFZxEIjcYtYPLk-mJ_vLW90Q8xGvvVJybzGOddeKPPJsRD3mytIv20oPDTw/exec';
 let DMS = {};
 const dmNorm = v => String(v || '').replace(/\s+/g, '').replace(/[－—–]/g, '-');
 if (DM_API) fetch(DM_API, { cache: 'no-store' }).then(r => r.json()).then(list => { DMS = {}; list.forEach(f => { DMS[dmNorm(f.name)] = f.id; }); }).catch(() => { });
