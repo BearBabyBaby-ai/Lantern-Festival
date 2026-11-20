@@ -205,7 +205,7 @@ function lxText(o){
     .filter(r => !govActs.includes(r.name))
     .sort((a,b) => { for (let k=0;k<3;k++) if (a.k[k]!==b.k[k]) return a.k[k]<b.k[k]?-1:1; return a.i-b.i; });
   const all = [...base, ...rows.flatMap(r=>[r.k[0], r.k[2]])].filter(Boolean).sort(), a = all[0]||"", b = all[all.length-1]||"";
-  const range = !a ? "" : a===b ? a.slice(5) : a.slice(0,4)===b.slice(0,4) ? a.slice(5)+"-"+b.slice(5) : a+"-"+b;
+  const range = !a ? "" : a===b ? a : a+"-"+b;
   return { acts: rows.map(r=>r.label).join("\n"), gov: govs.join("\n"), range };
 }
 

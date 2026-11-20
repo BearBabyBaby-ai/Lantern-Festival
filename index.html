@@ -377,8 +377,8 @@ function datesOf(range) {
   for (let i = 0; d <= end && i < 120; i++) { out.push(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`); d.setDate(d.getDate() + 1); }
   return out;
 }
-/* 日期一律同一種寫法：02/20、02/20-02/22（跨年才寫年份：2026/12/31-2027/01/02） */
-const rangeText = days => { if (!days.length) return ''; const a = days[0], b = days[days.length - 1]; if (a === b) return a.slice(5); return a.slice(0, 4) === b.slice(0, 4) ? `${a.slice(5)}-${b.slice(5)}` : `${a}-${b}`; };
+/* 元宵日期：比照熊寶系統 2027/02/20、2027/02/20-2027/02/22；活動內容細項 02/20、02/20-02/22 */
+const rangeText = days => { if (!days.length) return ''; const a = days[0], b = days[days.length - 1]; return a === b ? a : `${a}-${b}`; };
 
 /* ---------- 排除離島；元宵期間望安、七美不顯示 ---------- */
 const HIDE_TOWN = ['望安鄉', '七美鄉'];
@@ -443,7 +443,7 @@ const LX = (() => {
   }
   function dayLabel(it) {
     const md = d => d.slice(5);
-    const ds = [...it.dates.map(md), ...it.ranges.map(([a, b]) => a.slice(0, 4) === b.slice(0, 4) ? `${md(a)}-${md(b)}` : `${a}-${b}`)];
+    const ds = [...it.dates.map(md), ...it.ranges.map(([a, b]) => `${md(a)}-${md(b)}`)];
     const W = '日一二三四五六';
     const ws = [...new Set(it.weeks)].map(w => '週' + W[w]).join('、');
     return [ds.join('、'), ws].filter(Boolean).join(' ');
