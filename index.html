@@ -507,9 +507,10 @@ function buildTemple(r) {
     days, time: clean(r['元宵活動時間']), content: clean(r['元宵活動內容']), items, gov, govs, actDays: actDays.length ? actDays : days,
     history: clean(r['廟宇史蹟']), legend: clean(r['傳說']) };
 }
-/* 時間軸小標：當天的活動內容細項＋配合單位活動 */
+/* 時間軸小標：當天的活動內容細項＋配合單位（配合單位不論選哪天都顯示） */
 function todayActs(t, day) {
-  return [...t.items.filter(it => it.days.includes(day)).map(it => it.name), ...t.govs.filter(g => g.act && g.days.includes(day)).map(g => g.unit + '-' + g.act)].join('、');
+  /* 配合單位（例：文化局-2027超級龜龜）是廟宇本身的身分，不論選哪天都顯示 */
+  return [...t.items.filter(it => it.days.includes(day)).map(it => it.name), ...t.govs.map(g => g.act ? g.unit + '-' + g.act : g.unit)].join('、');
 }
 /* 現在（台灣時間）是否在細項的時段內 */
 function itemLive(t, it) {
@@ -1095,7 +1096,7 @@ function RoutePanel(boxId, opts) {
       const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
       const pic = t ? t.pic : s.pic;
-      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}${t && t.actDays.length ? `<i class="dt">${esc(dayText(t.actDays))}</i>` : ''}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && todayActs(t, day) ? `<em>${esc(todayActs(t, day))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
+      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}${t && t.actDays.length ? `<i class="dt">${esc(dayText(t.actDays))}</i>` : ''}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${t && todayActs(t, day) ? `<em>${esc(todayActs(t, day))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
     }).join('')}</div>`).join('');
     box.style.setProperty('--rc', r.color);
     box.innerHTML = `<div class="rsel-row"><label for="${sel}">元宵路線</label><select id="${sel}" data-rsel>${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
