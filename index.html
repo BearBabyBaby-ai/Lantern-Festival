@@ -511,10 +511,15 @@ function buildTemple(r) {
 }
 /* 路線列表的活動：每一項各自標日期（同詳細資訊），依日期排序；配合單位（例：文化局-2027超級龜龜）照它的日子標 */
 const mdText = days => dayText(days).replace(/\d{4}\//g, '');
-function routeActs(t) {
+/* 活動進行中：以首頁月曆選的日期查詢；選的是今天時再看現在時間是否在時段內 */
+function liveOn(t, it, day) {
+  if (!day || day === taipeiToday()) return itemLive(t, it);
+  return it.days.includes(day);
+}
+function routeActs(t, day) {
   const gname = g => g.act ? g.unit + '-' + g.act : g.unit;
-  const list = [...t.items.map(it => ({ days: it.days, live: itemLive(t, it), label: [LX.dayLabel(it) || mdText(it.days), LX.timeLabel(it), it.gov ? gname(it.gov) : it.name].filter(Boolean).join(' ') })),
-    ...t.govs.filter(g => !g.item).map(g => ({ days: g.days, live: itemLive(t, { days: g.days }), label: [mdText(g.days), gname(g)].filter(Boolean).join(' ') }))];
+  const list = [...t.items.map(it => ({ days: it.days, live: liveOn(t, it, day), label: [LX.dayLabel(it) || mdText(it.days), LX.timeLabel(it), it.gov ? gname(it.gov) : it.name].filter(Boolean).join(' ') })),
+    ...t.govs.filter(g => !g.item).map(g => ({ days: g.days, live: liveOn(t, { days: g.days }, day), label: [mdText(g.days), gname(g)].filter(Boolean).join(' ') }))];
   return list.filter(x => x.days.length).sort((x, y) => x.days[0].localeCompare(y.days[0]) || x.days[x.days.length - 1].localeCompare(y.days[y.days.length - 1]));
 }
 /* 現在（台灣時間）是否在細項的時段內 */
@@ -545,7 +550,7 @@ function govHtml(t) { return `<span class="lx-box">${t.govs.map(g => `<span clas
 function itemsHtml(t, day) {
   const one = it => {
     const label = [LX.dayLabel(it) || mdText(it.days), LX.timeLabel(it), it.name].filter(Boolean).join(' ');
-    const off = day && !it.days.includes(day), live = itemLive(t, it);
+    const off = day && !it.days.includes(day), live = liveOn(t, it, day);
     return `<span class="lx${off ? ' off' : ''}${live ? ' live' : ''}">${dmWrap(esc(label), itemDm(t, it))}${off ? '<i class="lx-tag gray">非本日</i>' : ''}${live ? '<i class="lx-live">活動進行中</i>' : ''}</span>`;
   };
   const has = it => LX.dayLabel(it) || LX.timeLabel(it) || it.days.length;
@@ -1102,7 +1107,7 @@ function RoutePanel(boxId, opts) {
       const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
       const pic = t ? t.pic : s.pic;
-      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${t ? routeActs(t).map(x => `<em>${esc(x.label)}${x.live ? '<i class="live">活動進行中</i>' : ''}</em>`).join('') : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
+      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${t ? routeActs(t, day).map(x => `<em>${esc(x.label)}${x.live ? '<i class="live">活動進行中</i>' : ''}</em>`).join('') : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
     }).join('')}</div>`).join('');
     box.style.setProperty('--rc', r.color);
     box.innerHTML = `<div class="rsel-row"><label for="${sel}">元宵路線</label><select id="${sel}" data-rsel>${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
