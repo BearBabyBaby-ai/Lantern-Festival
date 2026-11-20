@@ -382,7 +382,7 @@ function datesOf(range) {
 }
 /* 元宵日期：比照熊寶系統 2027/02/20、2027/02/20-2027/02/22；活動內容細項 02/20、02/20-02/22 */
 const rangeText = days => { if (!days.length) return ''; const a = days[0], b = days[days.length - 1]; return a === b ? a : `${a}-${b}`; };
-/* 活動日期：單一天 2027/02/20；連續 2027/02/20-2027/02/22；跳著只有兩天 2027/02/20、2027/02/22；跳著三天以上 第一天-最後一天 */
+/* 活動日期：單一天 2027/02/20；連續 2027/02/20-2027/02/22；跳著只有兩天 2027/02/20、2027/02/22；跳著三天以上 第一天-最後一天；有連續段加另一天 2027/02/20-2027/02/21、2027/02/24 */
 function dayText(days) {
   const next = d => { const x = new Date(d.replace(/\//g, '-') + 'T00:00:00'); x.setDate(x.getDate() + 1); return `${x.getFullYear()}/${String(x.getMonth() + 1).padStart(2, '0')}/${String(x.getDate()).padStart(2, '0')}`; };
   const runs = [];
@@ -390,7 +390,9 @@ function dayText(days) {
   if (!runs.length) return '';
   const all = [...days].sort(), a = all[0], b = all[all.length - 1];
   if (runs.length === 1) return a === b ? a : `${a}-${b}`;
-  return new Set(all).size === 2 ? `${a}、${b}` : `${a}-${b}`;
+  /* 全部都是跳著的單天：兩天 a、b；三天以上 頭-尾；有連續段：每段照寫，用「、」隔開 */
+  if (runs.every(([x, y]) => x === y)) return runs.length === 2 ? `${a}、${b}` : `${a}-${b}`;
+  return runs.map(([x, y]) => x === y ? x : `${x}-${y}`).join('、');
 }
 
 /* ---------- 排除離島；元宵期間望安、七美不顯示 ---------- */
@@ -477,11 +479,12 @@ function buildTemple(r) {
     days = LX.span(all[0], all[all.length - 1]);
   }
   items.forEach(it => {
-    const d = LX.ownDays(it) || days;
+    /* 沒寫日期的項目：只算試算表填的元宵活動日期範圍（不跟著其他項目延長） */
+    const d = LX.ownDays(it) || (base.length ? base : days);
     it.days = it.weeks.length ? d.filter(k => it.weeks.includes(LX.wdOf(k))) : d;
   });
   /* 依日期時間排序：開始日 → 開始時間 → 結束日 */
-  const sortKey = it => { const d = LX.ownDays(it) || days; return [d[0] || '', it.start || '', d[d.length - 1] || '']; };
+  const sortKey = it => { const d = LX.ownDays(it) || it.days; return [d[0] || '', it.start || '', d[d.length - 1] || '']; };
   items.forEach((it, i) => { it._i = i; });
   items.sort((a, b) => { const x = sortKey(a), y = sortKey(b); for (let k = 0; k < 3; k++) if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1; return a._i - b._i; });
   /* 配合單位：「單位-活動」，兩個以上用「、」隔開；活動內容裡屬於配合單位的活動，移到配合單位後面 */
