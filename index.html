@@ -77,6 +77,8 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .sheet .box{width:100%;max-width:560px;max-height:82%;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:18px 18px calc(22px + env(safe-area-inset-bottom));background:#fff;border-radius:20px 20px 0 0}
 .sheet .hd{display:flex;align-items:center;gap:8px}
 .sheet .hd b{font-size:20px;font-weight:900;color:var(--deep)}
+.sheet .tags{display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 10px}
+.sheet .tags .tag{font-size:12px;padding:1px 8px;border-radius:10px;background:var(--gold);color:var(--goldink);font-weight:700}
 .sheet .hd .tag{flex:none;font-size:12px;padding:1px 8px;border-radius:10px;background:var(--gold);color:var(--goldink);font-weight:700}
 .sheet .hd .x{margin-left:auto;width:44px;height:44px;flex:none;border:0;border-radius:22px;background:#f4ece1;color:var(--ink);display:flex;align-items:center;justify-content:center}
 .sheet .pic{width:100%;height:200px;object-fit:cover;border-radius:12px}
@@ -464,6 +466,10 @@ function buildTemple(r) {
     const d = LX.ownDays(it) || days;
     it.days = it.weeks.length ? d.filter(k => it.weeks.includes(LX.wdOf(k))) : d;
   });
+  /* 依日期時間排序：開始日 → 開始時間 → 結束日 */
+  const sortKey = it => { const d = LX.ownDays(it) || days; return [d[0] || '', it.start || '', d[d.length - 1] || '']; };
+  items.forEach((it, i) => { it._i = i; });
+  items.sort((a, b) => { const x = sortKey(a), y = sortKey(b); for (let k = 0; k < 3; k++) if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1; return a._i - b._i; });
   /* 配合單位：「單位-活動」，兩個以上用「、」隔開；活動內容裡屬於配合單位的活動，移到配合單位後面 */
   const govs = clean(r['參加政府單位活動(澎管處、文化局)']).split(/[、,，|｜│]/).map(x => x.trim()).filter(Boolean).map(x => {
     const m = x.match(/^([^-－]+)[-－](.+)$/);
@@ -507,7 +513,7 @@ function dmOf(names) { for (const n of names) { const id = DMS[dmNorm(n)]; if (i
 const govDm = g => g.act ? dmOf([g.act, g.unit + '-' + g.act]) : '';
 const itemDm = (t, it) => dmOf(templeDmKeys(t).flatMap(k => [k + '-' + it.name, k]));
 const dmWrap = (text, url) => url ? `<span class="dm-link" data-zoom="${esc(url)}">${text}</span>` : text;
-function govHtml(t) { return t.govs.map(g => dmWrap(esc(g.act ? g.unit + '-' + g.act : g.unit), govDm(g))).join('、'); }
+function govHtml(t) { return `<span class="lx-box">${t.govs.map(g => `<span class="lx-row"><span class="lx">${dmWrap(esc(g.act ? g.unit + '-' + g.act : g.unit), govDm(g))}</span></span>`).join('')}</span>`; }
 /* 活動內容：有日期或時間的一項一行；沒有的排同一行；day＝首頁點的日期 */
 function itemsHtml(t, day) {
   const one = it => {
@@ -525,10 +531,11 @@ function templeFields(t, day) {
 /* ---------- 詳細資訊 ---------- */
 function openSheet(o, day) {
   const fields = o.kind === 'temple' ? templeFields(o, day) : (o.fields || []);
-  const tag = o.kind === 'temple' ? o.gov : (o.tag || '');
+  const tags = o.kind === 'temple' ? (o.govs || []).map(g => g.act ? g.unit + '-' + g.act : g.unit) : (o.tag ? [o.tag] : []);
+  const tag = tags.length === 1 ? tags[0] : '';
   const url = navUrl(o);
   $('sheet').innerHTML = `<div class="box" role="dialog" aria-label="詳細資訊">
-    <div class="hd"><b>${esc(o.name)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ''}<button type="button" class="x" aria-label="關閉">${svg('close', 20)}</button></div>
+    <div class="hd"><b>${esc(o.name)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ''}<button type="button" class="x" aria-label="關閉">${svg('close', 20)}</button></div>${tags.length > 1 ? `<div class="tags">${tags.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</div>` : ''}
     ${o.pic ? `<img class="pic" src="${esc(picUrl(o.pic, 1000))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
     <div class="fields">${fields.map(([k, v]) => `<div><span>${esc(k)}</span><b style="font-weight:500">${v && v.html ? v.html : esc(v)}</b></div>`).join('')}</div>
     ${url ? `<a class="nav" href="${esc(url)}" target="_blank" rel="noopener">${svg('nav', 18)}導航</a>` : ''}
