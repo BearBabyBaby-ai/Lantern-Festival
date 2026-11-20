@@ -68,6 +68,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .stop .body{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1e6d6}
 .stop .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .stop .txt b{font-size:15px;font-weight:700}
+.stop .txt b .dt{font-style:normal;font-weight:500;font-size:14px;color:var(--ink);margin-left:12px;white-space:nowrap}
 .stop .txt span{font-size:12px;color:var(--muted)}
 .stop .txt em{align-self:flex-start;font-style:normal;font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;background:var(--goldsoft);color:var(--goldink)}
 .stop img{flex:none;width:64px;height:48px;object-fit:cover;border-radius:8px}
@@ -1076,7 +1077,7 @@ function RoutePanel(boxId, opts) {
       const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
       const pic = t ? t.pic : s.pic;
-      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && todayActs(t, day) ? `<em>${esc(todayActs(t, day))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
+      return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}${t && t.days.length ? `<i class="dt">${esc(t.days.length === 1 ? t.days[0] : t.days[0] + '-' + t.days[t.days.length - 1].slice(5))}</i>` : ''}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${hot && todayActs(t, day) ? `<em>${esc(todayActs(t, day))}</em>` : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
     }).join('')}</div>`).join('');
     box.style.setProperty('--rc', r.color);
     box.innerHTML = `<div class="rsel-row"><label for="${sel}">元宵路線</label><select id="${sel}" data-rsel>${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
