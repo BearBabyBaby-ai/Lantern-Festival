@@ -369,6 +369,19 @@ async function loadRows(key) {
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return Papa.parse(await res.text(), { header: true, skipEmptyLines: true }).data;
 }
+/* 先用上次存在這支手機的資料立刻顯示，同時在背景讀最新的；有變動才重新顯示 */
+async function cachedRows(key, apply) {
+  const ck = 'lfRows1:' + key, parse = txt => Papa.parse(txt, { header: true, skipEmptyLines: true }).data;
+  let old = null;
+  try { old = localStorage.getItem(ck); } catch (e) { }
+  if (old) { try { apply(parse(old)); } catch (e) { } }
+  try {
+    const res = await fetch(sheetUrl(SHEET_NAMES[key]), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const txt = await res.text();
+    if (txt !== old) { try { localStorage.setItem(ck, txt); } catch (e) { } apply(parse(txt)); }
+  } catch (e) { if (!old) throw e; }
+}
 const driveId = u => (String(u || '').match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=|thumbnail\?id=)([\w-]{20,})/) || [])[1] || '';
 const picUrl = (id, w = 640) => id ? `https://lh3.googleusercontent.com/d/${id}=w${w}` : '';
 const num = v => { const n = parseFloat(String(v || '').replace(/,/g, '')); return Number.isFinite(n) ? n : null; };
@@ -1174,21 +1187,21 @@ const Home = (() => {
   return { render, day: () => day };
 })();
 
-async function loadTemples() {
-  try {
-    const rows = await loadRows('temple');
-    window.TEMPLE_ROWS = rows;   /* 集章卡直接沿用，不再另外讀取 */
-    const list = rows.map(buildTemple).filter(keepPlace);
-    const map = {}; byDay = {};
-    list.forEach(t => { if (!map[t.key]) map[t.key] = t; });
-    Object.assign(TEMPLES, map);
-    Object.values(map).forEach(t => t.actDays.forEach(d => { (byDay[d] = byDay[d] || []); if (!byDay[d].includes(t.key)) byDay[d].push(t.key); }));
-    MapView.setData('temple', list);
-    MapView.load();
-  } catch (e) {
-    $('routeBox').innerHTML = '<div class="empty">元宵活動資料讀取失敗，請確認網路後重新開啟</div>';
-  }
+function applyTemples(rows) {
+  window.TEMPLE_ROWS = rows;   /* 集章卡直接沿用，不再另外讀取 */
+  const list = rows.map(buildTemple).filter(keepPlace);
+  const map = {}; byDay = {};
+  list.forEach(t => { if (!map[t.key]) map[t.key] = t; });
+  Object.keys(TEMPLES).forEach(k => delete TEMPLES[k]);
+  Object.assign(TEMPLES, map);
+  Object.values(map).forEach(t => t.actDays.forEach(d => { (byDay[d] = byDay[d] || []); if (!byDay[d].includes(t.key)) byDay[d].push(t.key); }));
+  MapView.setData('temple', list);
   Home.render();
+}
+async function loadTemples() {
+  MapView.load();
+  try { await cachedRows('temple', applyTemples); }
+  catch (e) { $('routeBox').innerHTML = '<div class="empty">元宵活動資料讀取失敗，請確認網路後重新開啟</div>'; }
 }
 
 /* ---------- 地圖 ---------- */
@@ -1217,7 +1230,7 @@ const MapView = (() => {
   function setData(k, list) { data[k] = list.map(r => build(k, r)).filter(keepPlace); if (currentView === 'map') render(); }
   async function load() {
     if (loaded) return; loaded = true;
-    await Promise.all(['food', 'spot'].map(async k => { try { setData(k, await loadRows(k)); } catch (e) {} }));
+    await Promise.all(['food', 'spot'].map(k => cachedRows(k, rows => setData(k, rows)).catch(() => { })));
   }
   const catOf = o => CATS.find(c => c.k === o.kind);
   function filtered() {
