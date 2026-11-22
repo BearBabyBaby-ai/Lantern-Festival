@@ -369,14 +369,14 @@ async function loadRows(key) {
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return Papa.parse(await res.text(), { header: true, skipEmptyLines: true }).data;
 }
-/* 先用上次存在這支手機的資料立刻顯示，同時在背景讀最新的；有變動才重新顯示 */
+/* 元宵資料是固定的：讀 APP 自帶的資料檔（data/）；試算表有增減時再更新這些檔案 */
 async function cachedRows(key, apply) {
   const ck = 'lfRows1:' + key, parse = txt => Papa.parse(txt, { header: true, skipEmptyLines: true }).data;
   let old = null;
   try { old = localStorage.getItem(ck); } catch (e) { }
   if (old) { try { apply(parse(old)); } catch (e) { } }
   try {
-    const res = await fetch(sheetUrl(SHEET_NAMES[key]), { cache: 'no-store' });
+    const res = await fetch('data/' + key + '.csv', { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const txt = await res.text();
     if (txt !== old) { try { localStorage.setItem(ck, txt); } catch (e) { } apply(parse(txt)); }
