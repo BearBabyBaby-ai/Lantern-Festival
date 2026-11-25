@@ -471,7 +471,7 @@ const keepPlace = o => !!o && !HIDE_TOWN.includes(o.town) && !ISLAND.test([o.vil
 /* ---------- 廟宇資料 ---------- */
 const TEMPLES = {};   /* 廟宇鍵（名稱＠座標）→ 資料；同名廟宇用座標區分 */
 let byDay = {};       /* 日期 → 活動廟宇鍵 */
-const tkOf = r => `${clean(r['廟宇名稱'])}@${clean(r.Latitude)},${clean(r.Longitude)}`;
+const tkOf = r => `${clean(r['廟宇名稱'])}@${clean(r['區域(村里)'])}`;   /* 同名廟宇用村里區分（路線 data.js 的 tk 同一規則） */
 /* 新增廟宇：用名稱找（同名時取有元宵日期的那間） */
 const extraKey = x => { const hit = Object.values(TEMPLES).filter(t => t.name === x.name); return ((hit.find(t => t.days.length) || hit[0]) || {}).key || ''; };
 /* ---------- 元宵活動內容：細項解析 ----------
@@ -694,15 +694,22 @@ function routeTowns(r) {
   const all = stopsOf(r).flatMap(sec => sec.stops), set = new Set();
   all.slice(1, -1).forEach(s => {
     const t = s.tk ? TEMPLES[s.tk] : null;
-    const town = t ? t.town : String(s.place || '').split('／')[0] || ((MapView.findSpot(s.name) || {}).town || '');
+    const town = t ? t.town : String(stopView(s).place || '').split('／')[0] || ((MapView.findSpot(s.name) || {}).town || '');
     if (town) set.add(town);
   });
   return set;
 }
+/* 路線站點的照片、地址、說明、座標：直接用原表景點（sk＝景點名稱＠村里）；原表沒有的點才用 data.js 的座標 */
+const SPOTS = {};
+function stopView(s) {
+  const p = s.sk ? SPOTS[s.sk] : null;
+  if (!p) return { ...s, place: '', addr: '', desc: '', pic: '', lat: s.lat ?? null, lng: s.lng ?? null };
+  return { ...s, place: [p.town, p.vil].filter(Boolean).join('／'), addr: p.addr, desc: p.desc, pic: p.pic, lat: p.lat, lng: p.lng };
+}
 function spotObj(s) {
-  const live = MapView.findSpot(s.name);
-  const fields = [['鄉市／村里', s.place], ['地址', s.addr], ['簡易說明', (live && live.desc) || s.desc]].filter(x => x[1]);
-  return { kind: 'spot', name: s.name, pic: s.pic, fields, lat: s.lat ?? null, lng: s.lng ?? null, addr: s.addr };
+  const v = stopView(s);
+  const fields = [['鄉市／村里', v.place], ['地址', v.addr], ['簡易說明', v.desc]].filter(x => x[1]);
+  return { kind: 'spot', name: s.name, pic: v.pic, fields, lat: v.lat, lng: v.lng, addr: v.addr };
 }
 /* 路線道路繪製：與澎湖美食推薦相同（沿道路、方向箭頭、編號圖釘） */
 const ROUTE_LINE = { city: '#2252a3', suburb: '#6b4394', north: '#855905', south: '#aa3e23', east: '#08725f' };
@@ -869,7 +876,7 @@ function roadFor(r, list) {
 function routeStops(r) {
   const out = [];
   stopsOf(r).forEach(sec => sec.stops.forEach(s => {
-    const t = s.tk ? TEMPLES[s.tk] : null, lat = t ? t.lat : s.lat, lng = t ? t.lng : s.lng;
+    const t = s.tk ? TEMPLES[s.tk] : null, v = stopView(s), lat = t ? t.lat : v.lat, lng = t ? t.lng : v.lng;
     if (s.extra && !t) return;
     if (lat == null || lng == null) return;
     out.push({ s, t, name: s.name, point: [lat, lng] });
@@ -1170,7 +1177,7 @@ function RoutePanel(boxId, opts) {
       if (s.extra && !t) return '';
       const no = s.extra ? '廟' : String(s.n).padStart(2, '0');
       const sub = t ? [[t.town, t.vil].filter(Boolean).join('／'), t.deity ? '主祀 ' + t.deity : ''].filter(Boolean).join('・') : '';
-      const pic = t ? t.pic : s.pic;
+      const pic = t ? t.pic : stopView(s).pic;
       return `<button type="button" class="stop${hot ? ' hot' : ''}" data-stop="${esc(s.name)}" data-t="${esc(s.tk || '')}"><span class="rail"><i></i><span class="no">${no}</span><i></i></span><span class="body"><span class="txt"><b>${esc(s.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${t ? routeActs(t, day).map(x => `<em>${esc(x.label)}${x.live ? '<i class="live">活動進行中</i>' : ''}</em>`).join('') : ''}</span>${pic ? `<img src="${esc(picUrl(pic, 240))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span></button>`;
     }).join('')}</div>`).join('');
     box.style.setProperty('--rc', r.color);
@@ -1277,7 +1284,11 @@ const MapView = (() => {
     return { kind: 'food', name, town, vil: '', addr, lat: num(r.Latitude), lng: num(r.Longitude), pic: driveId(r['圖資來源']), mapUrl: clean(r['完整網址']) || clean(r['短網址']), tag: '美食',
       meta: [c1, c2, svc].filter(Boolean).join('・'), rec, hrs, tel, fields: [['代表餐食', svc], ['推薦', rec], ['電話', tel], ['營業時間', hrs], ['地址', addr]].filter(x => x[1]) };
   }
-  function setData(k, list) { data[k] = list.map(r => build(k, r)).filter(keepPlace); if (currentView === 'map') render(); }
+  function setData(k, list) {
+    const all = list.map(r => build(k, r));
+    if (k === 'spot') { Object.keys(SPOTS).forEach(x => delete SPOTS[x]); all.forEach(o => { if (o && !SPOTS[o.name + '@' + o.vil]) SPOTS[o.name + '@' + o.vil] = o; }); Home.render(); }
+    data[k] = all.filter(keepPlace); if (currentView === 'map') render();
+  }
   async function load() {
     if (loaded) return; loaded = true;
     await Promise.all(['food', 'spot'].map(k => cachedRows(k, rows => setData(k, rows)).catch(() => { })));
