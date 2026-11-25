@@ -369,12 +369,10 @@ async function loadRows(key) {
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return Papa.parse(await res.text(), { header: true, skipEmptyLines: true }).data;
 }
-/* 元宵資料是固定的：讀 APP 自帶的資料檔（data/）；試算表有增減時再更新這些檔案（不在手機另外存資料） */
+/* 元宵資料直接讀試算表（不在 GitHub 留資料、不在手機另外存資料） */
 try { Object.keys(localStorage).filter(k => k.startsWith('lfRows1:')).forEach(k => localStorage.removeItem(k)); } catch (e) { }
 async function cachedRows(key, apply) {
-  const res = await fetch('data/' + key + '.csv', { cache: 'no-store' });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  apply(Papa.parse(await res.text(), { header: true, skipEmptyLines: true }).data);
+  apply(await loadRows(key));
 }
 const driveId = u => (String(u || '').match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=|thumbnail\?id=)([\w-]{20,})/) || [])[1] || '';
 const picUrl = (id, w = 640) => id ? `https://lh3.googleusercontent.com/d/${id}=w${w}` : '';

@@ -452,7 +452,7 @@ function lxText(o){
   }
   async function fetchAll(){
     const one = async k => {
-      const url = `data/${k}.csv`;   /* APP 自帶的元宵資料檔 */
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(SHEETS[k])}`;
       const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), 20000);
       try{
         const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
