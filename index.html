@@ -1118,8 +1118,7 @@ function RoutePanel(boxId, opts) {
     }).join('')}</div>`).join('');
     box.style.setProperty('--rc', r.color);
     box.innerHTML = `<div class="rsel-row"><label for="${sel}">元宵路線</label><select id="${sel}" data-rsel>${list.map(x => `<option value="${x.r.key}"${x.r.key === route ? ' selected' : ''}>${esc(x.r.name)}（${x.n} 間活動廟宇）</option>`).join('')}</select></div>
-      <div class="rcard"><div style="display:flex;flex-direction:column;gap:4px"><span class="nm">${esc(r.name)}</span><span class="th">${esc(r.theme)}</span><span class="stat">${total} 站・${cur.n} 間活動廟宇</span></div>
-      <img class="dm" src="${esc(r.dm)}" alt="${esc(r.theme)} 路線DM" data-zoom="${esc(r.dm)}">
+      <div class="rcard"><div style="display:flex;flex-direction:column;gap:4px"><span style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px"><span class="nm">${esc(r.name)}</span><span class="dm-link" data-zoom="${esc(r.dm)}">查看2027超級龜龜路線圖</span></span><span class="th">${esc(r.theme)}</span><span class="stat">${total} 站・${cur.n} 間活動廟宇</span></div>
       ${secs}
       <button type="button" class="btn-line" data-routemap>${svg('map', 16)}路線地圖</button></div>`;
     if (opts.onShow) opts.onShow(r, day);
